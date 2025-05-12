@@ -313,8 +313,20 @@ start_fio_docker() {
 cgroup_count=256
 create_cgroups ${cgroup_count}
 
-options=(baremetal-none baremetal-priomq baremetal-priobfq max none priomq priobfq iolat iocost)
-options=(cgroups-priomq)
+schedulers=(none priobfq priomq)
+otheropts=(max iolat iocost)
+groups=(baremetal cgroups docker)
+
+options=()
+
+for group in ${groups[@]}; do
+    for opt in ${otheropts[@]}; do
+        options+=(${group}-${opt})
+    done
+    for scheduler in ${schedulers[@]}; do
+        options+=(${group}-${scheduler})
+    done
+done
 
 # CPU
 for option in ${options[@]}; do
@@ -323,7 +335,7 @@ for option in ${options[@]}; do
         case ${option} in  
             *none*)
                 ;;
-            max)
+            *max*)
                 enable_max "${DEV}" "workload-${c}.slice"
                 ;;
             *priomq*)
@@ -332,10 +344,10 @@ for option in ${options[@]}; do
             *priobfq*)
                 set_scheduler "${DEV}" "bfq"
                 ;;
-            iolat)
+            *iolat*)
                 set_iolat "${DEV}" "workload-${c}.slice"
                 ;;
-            iocost)
+            *iocost*)
                 set_iocost "${DEV}"  "workload-${c}.slice"
                 ;;
             *)

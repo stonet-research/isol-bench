@@ -148,9 +148,9 @@ start_fio() {
         fiopids=$(pgrep ^fio  | paste -sd,)
         
         # CPU measurement
-        sudo taskset -c 1 sudo pidstat -p ${fiopids} -t 1 -u 2>&1 1>out/${option}-${containers}-inter-raw-pidstat &
+        sudo taskset -c 1 sudo pidstat -p ${fiopids} -t 1 -u 2>&1 1>out/${option}-${cgroup}-inter-raw-pidstat &
         pidstatpid=$!
-        sudo taskset -c 1 sudo sar -P ${cores} -u 1 60 2>&1 1>out/${option}-${containers}-inter-raw-sar &   
+        sudo taskset -c 1 sudo sar -P ${cores} -u 1 60 2>&1 1>out/${option}-${cgroup}-inter-raw-sar &   
         sarpid=$!
         for pid in ${fiomainpids[@]}; do 
             wait ${pid}
@@ -215,9 +215,9 @@ start_fio_cgroups() {
         fiopids=$(pgrep ^fio  | paste -sd,)
         
         # CPU measurement
-        sudo taskset -c 1 sudo pidstat -p ${fiopids} -t 1 -u 2>&1 1>out/${option}-${containers}-inter-cgroups-pidstat &
+        sudo taskset -c 1 sudo pidstat -p ${fiopids} -t 1 -u 2>&1 1>out/${option}-${cgroup}-inter-cgroups-pidstat &
         pidstatpid=$!
-        sudo taskset -c 1 sudo sar -P ${cores} -u 1 60 2>&1 1>out/${option}-${containers}-inter-cgroups-sar &   
+        sudo taskset -c 1 sudo sar -P ${cores} -u 1 60 2>&1 1>out/${option}-${cgroup}-inter-cgroups-sar &   
         sarpid=$!
         for pid in ${fiomainpids[@]}; do 
             wait ${pid}
@@ -313,8 +313,20 @@ start_fio_docker() {
 cgroup_count=256
 create_cgroups ${cgroup_count}
 
-options=(baremetal-none baremetal-priomq baremetal-priobfq max none priomq priobfq iolat iocost)
-options=(cgroups-priomq)
+schedulers=(none priobfq priomq)
+otheropts=(max iolat iocost)
+groups=(baremetal cgroups docker)
+
+options=()
+
+for group in ${groups[@]}; do
+    for opt in ${otheropts[@]}; do
+        options+=(${group}-${opt})
+    done
+    for scheduler in ${schedulers[@]}; do
+        options+=(${group}-${scheduler})
+    done
+done
 
 # CPU
 for option in ${options[@]}; do
@@ -323,7 +335,7 @@ for option in ${options[@]}; do
         case ${option} in  
             *none*)
                 ;;
-            max)
+            *max*)
                 enable_max "${DEV}" "workload-${c}.slice"
                 ;;
             *priomq*)
@@ -332,10 +344,10 @@ for option in ${options[@]}; do
             *priobfq*)
                 set_scheduler "${DEV}" "bfq"
                 ;;
-            iolat)
+            *iolat*)
                 set_iolat "${DEV}" "workload-${c}.slice"
                 ;;
-            iocost)
+            *iocost*)
                 set_iocost "${DEV}"  "workload-${c}.slice"
                 ;;
             *)
@@ -347,7 +359,7 @@ for option in ${options[@]}; do
     CORES='5'
 
     case ${option} in  
-        bare*)
+        baremetal*)
             start_fio ${FIO} ${CORES} "/dev/${DEV}" ${SCRIPT_DIR}/out/${option} ${cgroup_count}
             ;;
         cgroups*)

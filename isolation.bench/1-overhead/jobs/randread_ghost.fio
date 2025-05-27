@@ -1,0 +1,15 @@
+[global]
+
+[j]
+name=locked
+rw=randread
+time_based=1
+ramp_time=120s
+runtime=300d
+direct=1
+bs=4096
+norandommap=1
+allow_file_create=0
+ioengine=io_uring
+registerfiles=1
+fixedbufs=1

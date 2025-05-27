@@ -66,6 +66,23 @@ unset_iolat() {
         sudo tee /sys/fs/cgroup/${cgroup}/io.latency > /dev/null
 }
 
+set_iolat_ghost() {
+    DEVNUM=$(get_dev_num "/dev/${1}")
+    major_minor=${DEVNUM}
+    cgroup=$2
+
+    echo "${major_minor}  target=10" |\
+        sudo tee /sys/fs/cgroup/${cgroup}/io.latency > /dev/null
+}
+
+unset_iolat_ghost() {
+    DEVNUM=$(get_dev_num "/dev/${1}")
+    major_minor=${DEVNUM}
+    cgroup=$2
+
+    echo "${major_minor}  target=0" |\
+        sudo tee /sys/fs/cgroup/${cgroup}/io.latency > /dev/null
+}
 
 set_iocost() {
     DEVNUM=$(get_dev_num "/dev/${1}")
@@ -103,12 +120,12 @@ start_fio() {
 
     # Inter cgroup
     for numjobs in 1 2 4 8 16 32 64 128 256; do
-        truefile=${file}-${numjobs}-intra-raw.json
-        sudo touch ${truefile}
-        sudo ${fiop} \
-            --filename=${dev} \
-            --output-format=json \
-            --output=${truefile} \
+         truefile=${file}-${numjobs}-intra-raw.json
+         sudo touch ${truefile}
+         sudo ${fiop} \
+             --filename=${dev} \
+             --output-format=json \
+             --output=${truefile} \
             --cpus_allowed=${cores} \
             --numjobs=${numjobs} \
             --thread=0 \
@@ -311,10 +328,10 @@ start_fio_docker() {
 
 # Setup cgroups
 cgroup_count=256
-create_cgroups ${cgroup_count}
+create_cgroups $(( ${cgroup_count} + 1 ))
 
 schedulers=(none priobfq priomq)
-otheropts=(max iolat iocost)
+otheropts=(max iolat iolat-ghost iocost)
 groups=(baremetal cgroups docker)
 
 options=()
@@ -327,6 +344,8 @@ for group in ${groups[@]}; do
         options+=(${group}-${scheduler})
     done
 done
+
+options=("cgroups-iolat-ghost")
 
 # CPU
 for option in ${options[@]}; do
@@ -354,6 +373,27 @@ for option in ${options[@]}; do
                 ;;
         esac 
     done
+    disable_all "${DEV}" "workload-257.slice"
+
+    case ${option} in 
+        *iolat-ghost*)
+            ghostc=$(( ${cgroup_count} + 1 ))
+            ghost_group="workload-${ghostc}.slice"
+            set_iolat_ghost "${DEV}" "${ghost_group}" 
+            sudo ../fio/fio \
+                --cgroup="/${ghost_group}" \
+                --filename="/dev/${DEV}" \
+                --cpus_allowed=6 \
+                --numjobs=1 \
+                --thread=0 \
+                --group_reporting=1 \
+                ${SCRIPT_DIR}/jobs/randread_ghost.fio &
+            ghost_pid=$!
+            ;;
+        *)
+            ;;
+    esac 
+
 
     FIO='../fio/fio'
     CORES='5'
@@ -369,6 +409,18 @@ for option in ${options[@]}; do
             start_fio_docker ${FIO} ${CORES} "/dev/${DEV}" ${SCRIPT_DIR}/out/${option} ${cgroup_count}
             ;;
     esac
+
+
+    case ${option} in 
+        *iolat-ghost*)
+            sudo kill -9 ${ghost_pid}
+            ghostc=$(( ${cgroup_count} + 1 ))
+            ghost_group="workload-${ghostc}.slice"
+            unset_iolat_ghost "${DEV}" "${ghost_group}" 
+            ;;
+        *)
+            ;;
+    esac 
 done 
 
 for c in $(seq 0 ${cgroup_count}); do 

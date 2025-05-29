@@ -1,5 +1,5 @@
 FROM ubuntu:22.04
-ENV DEBIAN_FRONTEND noninteractive
+ENV FIO_VERSION bcd46be2adaa4afc32b836ad6137798544a3d80
 
 # Build dependencies
 RUN \
@@ -10,7 +10,7 @@ RUN \
 WORKDIR /home
 RUN git clone --branch master https://github.com/axboe/fio.git fio && \
     cd fio && \
-    git checkout bcd46be2adaa4afc32b836ad6137798544a3d80
+    git checkout ${FIO_VERSION} 
 
 # Build fio
 WORKDIR /home/fio

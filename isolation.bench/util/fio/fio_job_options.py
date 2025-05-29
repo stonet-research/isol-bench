@@ -228,6 +228,13 @@ class Io_uringSqthreadPollOption(FioOption):
         return [("sqthread_poll", f"{fio_truthy(self.yes)}")]
 
 @dataclass
+class DelayJobOption(FioOption):
+    delay: str
+
+    def to_opt(self) -> [(str, str)]:
+        return [("startdelay", self.delay)]
+
+@dataclass
 class RateOption(FioOption):
     read: str
     write: str 
@@ -242,6 +249,16 @@ class CgroupOption(FioOption):
 
     def to_opt(self) -> [(str, str)]:
         return [("cgroup", self.cgroup_parent)]
+
+@dataclass
+class BWLogOption(FioOption):
+    path: str
+
+    def to_opt(self) -> [(str, str)]:
+        return [
+            ("write_bw_log", self.path),
+            ("log_avg_msec", '1000')
+        ]
 
 # Enumerated types
 @dataclass

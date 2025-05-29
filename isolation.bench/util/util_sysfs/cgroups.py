@@ -301,7 +301,7 @@ def list_cgroups(path=cgroup_syspath):
 
 def create_cgroup(relative_path) -> Cgroup:
     cgroup_path = f"{cgroup_syspath}/{relative_path}"
-    subprocess.check_call(f"sudo mkdir -p {cgroup_path}", shell=True)
+    subprocess.check_call(f"sudo mkdir -m='0755' -p {cgroup_path}", shell=True)
     set_sysfs(f"{cgroup_path}/cgroup.subtree_control", "+io")
     return Cgroup(cgroup_path)
 
@@ -310,9 +310,10 @@ def set_iocost(model: IOCostModel, qos: IOCostQOS):
     set_sysfs(f"{cgroup_syspath}/io.cost.qos", qos.to_str())    
 
 def get_iocost():
-    model = None  
-    with open(f"{cgroup_syspath}/io.cost.model", "r") as f:
-        model =  IOCostModel.from_str(f.readline()) 
+    model = None
+    if os.path.exists(f"{cgroup_syspath}/io.cost.model"):  
+        with open(f"{cgroup_syspath}/io.cost.model", "r") as f:
+            model =  IOCostModel.from_str(f.readline()) 
     qos = None  
     with open(f"{cgroup_syspath}/io.cost.qos", "r") as f:
         qos =  IOCostQOS.from_str(f.readline()) 
@@ -320,8 +321,9 @@ def get_iocost():
 
 def disable_iocost():
     model, qos = get_iocost()
-    qos.enable = False
-    set_iocost(model, qos)
+    if model is not None and qos is not None:
+        qos.enable = False
+        set_iocost(model, qos)
 
 
 def disable_iocontrol():

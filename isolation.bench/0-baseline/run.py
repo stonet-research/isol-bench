@@ -239,6 +239,8 @@ def io_latency_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
 
     return [job_a, job_b, job_c]
 
+def io_cost_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
+  return io_latency_setup_fio_jobs(exp_cgroups)
 
 def global_setup_fio_job(device_name: str) -> fio.FioGlobalJob:
     job = fio.FioGlobalJob()
@@ -306,9 +308,33 @@ def io_latency_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list
     cgroup_b = exp_cgroups[1]
     cgroup_c = exp_cgroups[2]
 
-    cgroup_a.iolatency = cgroups.IOBFQWeight(nvme_device.major_minor, 1000)
-    cgroup_b.iolatency = cgroups.IOBFQWeight(nvme_device.major_minor, 20)
-    cgroup_c.iolatency = cgroups.IOBFQWeight(nvme_device.major_minor, 100)
+    cgroup_a.iolatency = cgroups.IOLatency(nvme_device.major_minor, 1000)
+    cgroup_b.iolatency = cgroups.IOLatency(nvme_device.major_minor, 20)
+    cgroup_c.iolatency = cgroups.IOLatency(nvme_device.major_minor, 100)
+
+def io_cost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 89698, 110036, 1063126016, 135560, 130734)
+    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 100, 95.00, 1000, 50.00, 150.00)
+    cgroups.set_iocost(model, qos)
+
+    cgroup_a = exp_cgroups[0]
+    cgroup_b = exp_cgroups[1]
+    cgroup_c = exp_cgroups[2]
+
+    cgroup_a.ioweight = cgroups.IOWeight("default", 1)
+    cgroup_b.ioweight = cgroups.IOWeight("default", 1)
+    cgroup_c.ioweight = cgroups.IOWeight("default", 1)
+
+def io_costw_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    io_cost_configure_cgroups(nvme_device, exp_cgroups)
+
+    cgroup_a = exp_cgroups[0]
+    cgroup_b = exp_cgroups[1]
+    cgroup_c = exp_cgroups[2]
+
+    cgroup_a.ioweight = cgroups.IOWeight("default", 1)
+    cgroup_b.ioweight = cgroups.IOWeight("default", 1000)
+    cgroup_c.ioweight = cgroups.IOWeight("default", 100)
 
 def setup_cgroups() -> list[cgroups.Cgroup]:
     return [cgroups.create_cgroup(f"example-workload-{i}.slice") for i in range(0,5)]
@@ -351,7 +377,9 @@ IO_KNOBS = {
     "iopriomq": IOKnob("io.prio_class+mq", ioprio_mq_configure_cgroups, ioprio_mq_setup_fio_jobs),
     "iopriobfq": IOKnob("io.prio_class+bfq", ioprio_bfq_configure_cgroups, ioprio_bfq_setup_fio_jobs),
     "iobfqweight": IOKnob("io.bfq.weight", io_bfq_weight_configure_cgroups, io_bfq_weight_setup_fio_jobs),
-    "iolatency": IOKnob("io.latency", io_latency_configure_cgroups, io_latency_setup_fio_jobs)
+    "iolatency": IOKnob("io.latency", io_latency_configure_cgroups, io_latency_setup_fio_jobs),
+    "iocost": IOKnob("io.cost", io_cost_configure_cgroups, io_cost_setup_fio_jobs),
+    "iocostw": IOKnob("io.cost+weights", io_costw_configure_cgroups, io_cost_setup_fio_jobs)
 }
 
 if __name__ == "__main__":

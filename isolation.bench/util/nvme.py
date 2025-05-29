@@ -25,7 +25,7 @@ class IOScheduler(Enum):
 class NVMeDevice(object):
     """Wrapper for NVMe devices in GNU/Linux"""
 
-    syspath="/sys/class/block"
+    NVME_SYSPATH="/sys/class/block"
 
     def __init__(self, devicename):
         self.devicename = devicename
@@ -35,44 +35,48 @@ class NVMeDevice(object):
         return self.devicename
 
     @property
+    def syspath(self) -> str:
+        return f"/dev/{self.name}"
+
+    @property
     def address(self) -> str:
-        with open(f"{self.syspath}/{self.devicename}/device/address", "r") as f:
+        with open(f"{self.NVME_SYSPATH}/{self.devicename}/device/address", "r") as f:
             return f.readline().strip()
 
     @property
     def eui(self) -> str:
-        with open(f"{self.syspath}/{self.devicename}/eui", "r") as f:
+        with open(f"{self.NVME_SYSPATH}/{self.devicename}/eui", "r") as f:
             return f.readline().strip().replace(" ", "")
 
     @property
     def nsid(self) -> int:
-        with open(f"{self.syspath}/{self.devicename}/nsid", "r") as f:
+        with open(f"{self.NVME_SYSPATH}/{self.devicename}/nsid", "r") as f:
             return int(f.readline())
 
     @property
     def major_minor(self) -> int:
-        with open(f"{self.syspath}/{self.devicename}/dev", "r") as f:
+        with open(f"{self.NVME_SYSPATH}/{self.devicename}/dev", "r") as f:
             return f.readline().strip()
 
     @property
     def numa_node(self) -> int:
-        with open(f"{self.syspath}/{self.devicename}/device/numa_node", "r") as f:
+        with open(f"{self.NVME_SYSPATH}/{self.devicename}/device/numa_node", "r") as f:
             return int(f.readline())
 
     @property
     def logical_block_size(self) -> int:
-        with open(f"{self.syspath}/{self.devicename}/queue/logical_block_size", "r") as f:
+        with open(f"{self.NVME_SYSPATH}/{self.devicename}/queue/logical_block_size", "r") as f:
             return int(f.readline())
 
     @property
     def min_request_size(self) -> int:
-        with open(f"{self.syspath}/{self.devicename}/queue/minimum_io_size", "r") as f:
+        with open(f"{self.NVME_SYSPATH}/{self.devicename}/queue/minimum_io_size", "r") as f:
             return int(f.readline())
 
     @property    
     def io_scheduler(self) -> IOScheduler:
         sched = ''
-        with open(f"{self.syspath}/{self.devicename}/queue/scheduler", "r") as f:
+        with open(f"{self.NVME_SYSPATH}/{self.devicename}/queue/scheduler", "r") as f:
             sched = f.readline().strip()
         parsed_sched = sched.split('[')[1].split(']')[0]
         return IOScheduler.from_str(parsed_sched)

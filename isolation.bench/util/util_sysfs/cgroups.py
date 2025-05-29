@@ -143,6 +143,19 @@ class IOWeight:
         args = text.strip().split(" ")
         return IOWeight(args[0], args[1])
 
+@dataclass
+class IOBFQWeight:
+    major_minor: str
+    weight: int | str
+
+    def to_str(self) -> str:
+        return f"{self.major_minor} {self.weight}"
+
+    @staticmethod
+    def from_str(text: str):
+        args = text.strip().split(" ")
+        return IOBFQWeight(args[0], args[1])
+
 class IOPriorityClass(Enum):
     NO_CHANGE="no-change"
     PROMOTE_TO_RT="promote-to-rt"
@@ -189,6 +202,10 @@ class Cgroup(object):
     def iocontrol_enabled(self) -> bool:
         with open(f"{self.cgroup_path}/cgroup.subtree_control", "r") as f:
             return "io" in f.readline()
+
+    @iocontrol_enabled.setter
+    def iocontrol_enabled(self, enabled_val: bool):
+        set_sysfs(f"{self.cgroup_path}/cgroup.subtree_control", "+io" if enabled_val else "-io")    
 
     @property
     def path(self) -> str:
@@ -249,6 +266,33 @@ class Cgroup(object):
             self.ioweight = ioweight_val
 
     @property
+    def iobfqweight(self) -> [IOBFQWeight]:
+        if not self.iocontrol_enabled:
+            raise ValueError("iocontrol not enabled for this group")
+        lines = []
+        with open(f"{self.cgroup_path}/io.bfq.weight", "r") as f:
+            lines = f.readlines()
+        return [IOBFQWeight.from_str(line) for line in lines]
+        
+    @iobfqweight.setter
+    def iobfqweight(self, iobfqweight_val: IOBFQWeight):
+        if not self.iocontrol_enabled:
+            raise ValueError("iocontrol not enabled for this group")
+        if type(iobfqweight_val.weight) != str and (int(iobfqweight_val.weight) < 1 or int(iobfqweight_val.weight) > 10_000):
+            raise ValueError("Invalid weight")
+        set_sysfs(f"{self.cgroup_path}/io.bfq.weight", iobfqweight_val.to_str())    
+
+    @iobfqweight.deleter
+    def iobfqweight(self):
+        if not self.iocontrol_enabled:
+            return
+        for iobfqweight_val in self.iobfqweight:
+            if iobfqweight_val.major_minor == "default":
+                continue
+            iobfqweight_val.weight = "default"
+            self.iobfqweight = iobfqweight_val
+
+    @property
     def ioprio(self) -> IOPriorityClass:
         if not self.iocontrol_enabled:
             raise ValueError("iocontrol not enabled for this group")
@@ -293,6 +337,7 @@ class Cgroup(object):
     def disable_iocontrol(self):
         del self.iomax
         del self.ioweight
+        del self.iobfqweight
         del self.ioprio
         del self.iolatency
 

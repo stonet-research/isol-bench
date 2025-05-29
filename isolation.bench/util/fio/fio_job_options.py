@@ -257,8 +257,15 @@ class BWLogOption(FioOption):
     def to_opt(self) -> [(str, str)]:
         return [
             ("write_bw_log", self.path),
-            ("log_avg_msec", '1000')
+            ("log_avg_msec", '100')
         ]
+
+@dataclass
+class AllowedCPUsOption(FioOption):
+    cpus: str
+
+    def to_opt(self) -> [(str, str)]:
+        return [("cpus_allowed", self.cpus)]
 
 # Enumerated types
 @dataclass

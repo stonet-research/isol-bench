@@ -83,7 +83,7 @@ class NVMeDevice(object):
 
     @io_scheduler.setter
     def io_scheduler(self, sched: IOScheduler):
-        set_sysfs(f"{self.syspath}/{self.devicename}/queue/scheduler", sched.value)
+        set_sysfs(f"{self.NVME_SYSPATH}/{self.devicename}/queue/scheduler", sched.value)
 
     @io_scheduler.deleter
     def io_scheduler(self):
@@ -103,7 +103,7 @@ def nvme_list() -> list[NVMeDevice]:
     except:
         return []
 
-def find_nvme_with_eui(eui: str):
+def find_nvme_with_eui(eui: str) -> NVMeDevice:
     if len(eui) != 16:
         raise ValueError('invalid eui')
     return next(filter(lambda nvme_candidate: nvme_candidate.eui == eui, nvme_list()))

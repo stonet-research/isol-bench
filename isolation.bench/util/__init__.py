@@ -1,2 +1,2 @@
 from .fio import *
-from .cgroups import *
+from .util_sysfs import *

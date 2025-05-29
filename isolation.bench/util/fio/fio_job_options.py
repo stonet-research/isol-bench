@@ -129,14 +129,12 @@ class RequestSizeOption(FioOption):
     def to_opt(self) -> [(str, str)]:
         return [("bs", f"{self.size}")]
 
-
 @dataclass
 class SizeOption(FioOption):
     size: str
 
     def to_opt(self) -> [(str, str)]:
         return [("size", f"{self.size}")]
-
 
 @dataclass
 class OffsetOption(FioOption):
@@ -151,8 +149,6 @@ class FixedOffsetOption(FioOption):
 
     def to_opt(self) -> [(str, str)]:
         return [("offset", f"{self.offset}")]
-
-
 
 @dataclass
 class DelayOption(FioOption):
@@ -231,6 +227,21 @@ class Io_uringSqthreadPollOption(FioOption):
     def to_opt(self) -> [(str, str)]:
         return [("sqthread_poll", f"{fio_truthy(self.yes)}")]
 
+@dataclass
+class RateOption(FioOption):
+    read: str
+    write: str 
+    trim: str
+
+    def to_opt(self) -> [(str, str)]:
+        return [("rate", f"{self.read},{self.write},{self.trim}")]
+
+@dataclass 
+class CgroupOption(FioOption):
+    cgroup_parent: str
+
+    def to_opt(self) -> [(str, str)]:
+        return [("cgroup", self.cgroup_parent)]
 
 # Enumerated types
 @dataclass

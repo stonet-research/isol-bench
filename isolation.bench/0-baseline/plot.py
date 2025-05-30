@@ -57,205 +57,61 @@ set_font(21)
 
 nvme_drive = get_nvmedev()
 
-def plot_iomax_example():
+def example_plot(file_out: str, preamble: str, labels: list[str]):
+    if len(labels) != 3:
+        raise ValueError("Invalid label count")
+
     fig, ax = plt.subplots()
 
-    for enabled in [True]:
-        st = 'solid' if enabled else 'dashed'
+    cs = ['#AA4499', '#117733', '#DDCC77']
 
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.max-{enabled}-0_bw.1.log')
-        plt.plot([xx + 0 for xx in x], kib_to_mib(y), color='#AA4499', label=f'A - io.max @ 1500 MiB/s', linestyle=st, linewidth=4)
+    for i in range(3):
+        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/{preamble}-{i}_bw.{i+1}.log')
+        plt.plot([xx + i * 10 for xx in x], kib_to_mib(y), color=cs[i], label=labels[i], linestyle='solid', linewidth=4)
 
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.max-{enabled}-1_bw.2.log')
-        plt.plot([xx + 10 for xx in x], kib_to_mib(y), color='#117733', label=f'B - io.max @ 500 MiB/s', linestyle=st, linewidth=4)
+        plt.text(x[0] + i * 10 + 1, kib_to_mib(y)[1] + 75, labels[i][0], ha="center", va="center",
+             bbox = dict(boxstyle=f"circle,pad=0.1", fc='white', edgecolor=cs[i], linewidth=4)) 
+        
+        plt.plot(x[-1] + i * 10, kib_to_mib(y)[-1], marker='>', color=cs[i], markersize=13) 
 
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.max-{enabled}-2_bw.3.log')
-        plt.plot([xx + 20 for xx in x], kib_to_mib(y), color='#DDCC77', label=f'C - io.max @ 500 MiB/s', linestyle=st, linewidth=4)
-
-    plt.xticks(list(range(0, 90, 10)))
+    plt.xlim(0, 90)
+    plt.xticks(list(range(0, 100, 10)))
     plt.grid()
 
     plt.ylim(0,2500)
     plt.xlabel("Time (s)")
     plt.ylabel("Throughput (MiB/s)")
     plt.legend(loc=(0.01, 0.62))
-    fig.savefig(f'./plots/io.max.pdf', bbox_inches="tight")
+    fig.savefig(f'./plots/{file_out}.pdf', bbox_inches="tight")
+
+def plot_iomax_example():
+    example_plot('io.max', 'io.max-True', ['A - io.max @ 1500 MiB/s', 'B - io.max @ 500 MiB/s', 'C - io.max @ 500 MiB/s'])
+
+def plot_ioprio(scheduler: str):
+    example_plot(f'io.prio{scheduler}', f'io.prio_class+{scheduler}-True', ['A - promote-to-rt', 'B - idle', 'C - restrict-to-be'])
 
 def plot_ioprio_mq_example():
-    fig, ax = plt.subplots()
-
-    for enabled in [True]:
-        st = 'solid' if enabled else 'dashed'
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.prio_class+mq-{enabled}-0_bw.1.log')
-        plt.plot([xx + 0 for xx in x], kib_to_mib(y), color='#AA4499', label=f'A - promote-to-rt', linestyle=st, linewidth=4)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.prio_class+mq-{enabled}-2_bw.3.log')
-        plt.plot([xx + 20 for xx in x], kib_to_mib(y), color='#DDCC77', label=f'B - restrict-to-be', linestyle=st, linewidth=4)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.prio_class+mq-{enabled}-1_bw.2.log')
-        plt.plot([xx + 10 for xx in x], kib_to_mib(y), color='#117733', label=f'C - idle', linestyle=st, linewidth=4)
-
-    plt.xlim(0, 90)
-    plt.xticks(list(range(0, 100, 10)))
-    plt.grid()
-
-    plt.ylim(0,2500)
-    plt.xlabel("Time (s)")
-    plt.ylabel("Throughput (MiB/s)")
-    plt.legend(loc=(0.01, 0.62))
-    fig.savefig(f'./plots/io.priomq.pdf', bbox_inches="tight")
+    plot_ioprio('mq')
 
 def plot_ioprio_bfq_example():
-    fig, ax = plt.subplots()
-
-    for enabled in [True]:
-        st = 'solid' if enabled else 'dashed'
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.prio_class+bfq-{enabled}-0_bw.1.log')
-        plt.plot([xx + 0 for xx in x], kib_to_mib(y), color='#AA4499', label=f'A - promote-to-rt', linestyle=st, linewidth=4)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.prio_class+bfq-{enabled}-2_bw.3.log')
-        plt.plot([xx + 20 for xx in x], kib_to_mib(y), color='#DDCC77', label=f'B - restrict-to-be', linestyle=st, linewidth=4)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.prio_class+bfq-{enabled}-1_bw.2.log')
-        plt.plot([xx + 10 for xx in x], kib_to_mib(y), color='#117733', label=f'C - idle', linestyle=st, linewidth=4)
-
-    plt.xlim(0, 90)
-    plt.xticks(list(range(0, 100, 10)))
-    plt.grid()
-
-    plt.ylim(0,2500)
-    plt.xlabel("Time (s)")
-    plt.ylabel("Throughput (MiB/s)")
-    plt.legend(loc=(0.01, 0.62))
-    fig.savefig(f'./plots/io.priobfq.pdf', bbox_inches="tight")
+    plot_ioprio('bfq')
 
 def plot_iowbfq_example():
-    fig, ax = plt.subplots()
-
-    for enabled in [True]:
-        st = 'solid' if enabled else 'dashed'
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.bfq.weight-{enabled}-0_bw.1.log')
-        plt.plot([xx + 0 for xx in x], kib_to_mib(y), color='#AA4499', label=f'A - io.bfq.weight @ 1000', linestyle=st, linewidth=4, zorder=1)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.bfq.weight-{enabled}-2_bw.3.log')
-        plt.plot([xx + 20 for xx in x], kib_to_mib(y), color='#DDCC77', label=f'B - io.bfq.weight @ 100', linestyle=st, linewidth=4, zorder=2)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.bfq.weight-{enabled}-1_bw.2.log')
-        plt.plot([xx + 10 for xx in x], kib_to_mib(y), color='#117733', label=f'C - io.bfq.weight @ 1', linestyle=st, linewidth=4, zorder=3)
-
-    plt.xlim(0, 90)
-    plt.xticks(list(range(0, 100, 10)))
-    plt.grid()
-
-    plt.ylim(0,2500)
-    plt.xlabel("Time (s)")
-    plt.ylabel("Throughput (MiB/s)")
-    plt.legend(loc=(0.01, 0.62))
-    fig.savefig(f'./plots/io.bfq.weight.pdf', bbox_inches="tight")
+    example_plot('io.bfq.weight', 'io.bfq.weight-True', ['A - io.bfq.weight @ 1000', 'B - io.bfq.weight @ 1', 'C - io.bfq.weight @ 100'])
 
 def plot_iolatency_example():
-    fig, ax = plt.subplots()
-
-    for enabled in [True]:
-        st = 'solid' if enabled else 'dashed'
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.latency-{enabled}-0_bw.1.log')
-        plt.plot([xx + 0 for xx in x], kib_to_mib(y), color='#AA4499', label=f'A - io.latency @ 20us', linestyle=st, linewidth=4, zorder=1)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.latency-{enabled}-2_bw.3.log')
-        plt.plot([xx + 20 for xx in x], kib_to_mib(y), color='#DDCC77', label=f'B - io.latency @ 100us', linestyle=st, linewidth=4, zorder=3)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.latency-{enabled}-1_bw.2.log')
-        plt.plot([xx + 10 for xx in x], kib_to_mib(y), color='#117733', label=f'C - io.latency @ 1000us', linestyle=st, linewidth=4, zorder=2)
-
-    plt.xlim(0, 90)
-    plt.xticks(list(range(0, 100, 10)))
-    plt.grid()
-
-    plt.ylim(0,2500)
-    plt.xlabel("Time (s)")
-    plt.ylabel("Throughput (MiB/s)")
-    plt.legend(loc=(0.01, 0.62))
-    fig.savefig(f'./plots/io.latency.pdf', bbox_inches="tight")
+    example_plot('io.latency', 'io.latency-True', ['A - io.latency @ 20us', 'B - io.latency @ 1000us', 'C - io.latency @ 100us'])
 
 def plot_iocost_example():
-    fig, ax = plt.subplots()
-
-    for enabled in [True]:
-        st = 'solid' if enabled else 'dashed'
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.cost-{enabled}-0_bw.1.log')
-        plt.plot([xx + 0 for xx in x], kib_to_mib(y), color='#AA4499', label=f'A', linestyle=st, linewidth=4, zorder=1)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.cost-{enabled}-2_bw.3.log')
-        plt.plot([xx + 20 for xx in x], kib_to_mib(y), color='#DDCC77', label=f'B', linestyle=st, linewidth=4, zorder=3)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.cost-{enabled}-1_bw.2.log')
-        plt.plot([xx + 10 for xx in x], kib_to_mib(y), color='#117733', label=f'C', linestyle=st, linewidth=4, zorder=2)
-
-    plt.xlim(0, 90)
-    plt.xticks(list(range(0, 100, 10)))
-    plt.grid()
-
-    plt.ylim(0,2500)
-    plt.xlabel("Time (s)")
-    plt.ylabel("Throughput (MiB/s)")
-    plt.legend(loc=(0.01, 0.62))
-    fig.savefig(f'./plots/io.cost.pdf', bbox_inches="tight")
+    example_plot('io.cost', 'io.cost-True', ['A', 'B', 'C'])
 
 def plot_iocostw_example():
-    fig, ax = plt.subplots()
-
-    for enabled in [True]:
-        st = 'solid' if enabled else 'dashed'
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.cost+weights-{enabled}-0_bw.1.log')
-        plt.plot([xx + 0 for xx in x], kib_to_mib(y), color='#AA4499', label=f'A - io.weight @ 1000', linestyle=st, linewidth=4, zorder=1)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.cost+weights-{enabled}-2_bw.3.log')
-        plt.plot([xx + 20 for xx in x], kib_to_mib(y), color='#DDCC77', label=f'B - io.weight @ 100', linestyle=st, linewidth=4, zorder=3)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.cost+weights-{enabled}-1_bw.2.log')
-        plt.plot([xx + 10 for xx in x], kib_to_mib(y), color='#117733', label=f'C - io.weight @ 1', linestyle=st, linewidth=4, zorder=2)
-
-    plt.xlim(0, 90)
-    plt.xticks(list(range(0, 100, 10)))
-    plt.grid()
-
-    plt.ylim(0,2500)
-    plt.xlabel("Time (s)")
-    plt.ylabel("Throughput (MiB/s)")
-    plt.legend(loc=(0.01, 0.62))
-    fig.savefig(f'./plots/io.costw.pdf', bbox_inches="tight")
+    example_plot('io.costw', 'io.cost+weights-True', ['A - io.weight @ 1000', 'B - io.weight @ 1', 'C - io.weight @ 100'])
 
 def plot_empty():
-    fig, ax = plt.subplots()
+    example_plot('none', 'io.cost-False', ['A', 'B', 'C'])
 
-    for enabled in [False]:
-        st = 'solid'
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.cost-{enabled}-0_bw.1.log')
-        plt.plot([xx + 0 for xx in x], kib_to_mib(y), color='#AA4499', label=f'A', linestyle=st, linewidth=4, zorder=1)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.cost-{enabled}-2_bw.3.log')
-        plt.plot([xx + 20 for xx in x], kib_to_mib(y), color='#DDCC77', label=f'B', linestyle=st, linewidth=4, zorder=3)
-
-        x, y = parse_fio_bw_log(f'./out/{nvme_drive.eui}/io.cost-{enabled}-1_bw.2.log')
-        plt.plot([xx + 10 for xx in x], kib_to_mib(y), color='#117733', label=f'C', linestyle=st, linewidth=4, zorder=2)
-
-    plt.xlim(0, 90)
-    plt.xticks(list(range(0, 100, 10)))
-    plt.grid()
-
-    plt.ylim(0,2500)
-    plt.xlabel("Time (s)")
-    plt.ylabel("Throughput (MiB/s)")
-    plt.legend(loc=(0.01, 0.62))
-    fig.savefig(f'./plots/none.pdf', bbox_inches="tight")
-
+plot_empty()
 plot_iomax_example()
 plot_ioprio_mq_example()
 plot_ioprio_bfq_example()
@@ -263,4 +119,4 @@ plot_iowbfq_example()
 plot_iolatency_example()
 plot_iocost_example()
 plot_iocostw_example()
-plot_empty()
+# add your own here

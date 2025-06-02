@@ -14,10 +14,10 @@ drive=/dev/nvmeXnY
 
 Make sure your SSD is filled and pre-conditioned. Then run:
 ```bash
-for knob in none mq bfq iomax iopriomq iopriobfq iobfqweight iolatency iocost iocostw; do
-    for active in 1 0; do 
-        python3 run_latency.py "--${knob} --active=${active}" 
-    done
+for knob in none bfq mq iomax iolat iocost; do 
+    for active in "--active=1" ""; do 
+        python3 run_latency.py "--${knob}=1" ${active}; 
+    done; 
 done
 ```
 

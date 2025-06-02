@@ -11,6 +11,9 @@ from util_sysfs import cgroups as cgroups
 from util_sysfs import nvme as nvme
 from util_sysfs.bench import *
 
+EXPERIMENT_CGROUP_PATH_PREAMBLE=f"example-workload"
+EXPERIMENT_MAX_TENANT_COUNT=5
+
 @dataclass
 class IOKnob:
     name: str
@@ -180,7 +183,7 @@ def io_costw_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[c
     cgroup_c.ioweight = cgroups.IOWeight("default", 100)
 
 def setup_cgroups() -> list[cgroups.Cgroup]:
-    return [cgroups.create_cgroup(f"example-workload-{i}.slice") for i in range(0,5)]
+    return [cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_PATH_PREAMBLE}-{i}.slice") for i in range(0,EXPERIMENT_MAX_TENANT_COUNT)]
 
 def main(knobs_to_test: list[IOKnob]):
     nvme_device = get_nvmedev()

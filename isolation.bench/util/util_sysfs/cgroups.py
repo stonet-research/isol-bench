@@ -195,17 +195,8 @@ class Cgroup(object):
 
     def __init__(self, cgroup_path: str):
         if not os.path.exists(cgroup_path) or cgroup_syspath not in cgroup_path:
-            raise ValueError('invalid cgroup')
+            raise ValueError(f'invalid cgroup: {cgroup_path}')
         self.cgroup_path = cgroup_path
-
-    @property
-    def iocontrol_enabled(self) -> bool:
-        with open(f"{self.cgroup_path}/cgroup.subtree_control", "r") as f:
-            return "io" in f.readline()
-
-    @iocontrol_enabled.setter
-    def iocontrol_enabled(self, enabled_val: bool):
-        set_sysfs(f"{self.cgroup_path}/cgroup.subtree_control", "+io" if enabled_val else "-io")    
 
     @property
     def path(self) -> str:
@@ -216,9 +207,30 @@ class Cgroup(object):
         return self.path[len(cgroup_syspath):]
 
     @property
+    def isroot(self) -> bool:
+        return self.path == cgroup_syspath
+
+    @property
+    def parent(self):
+        if self.isroot:
+            return None
+        parent_path = str(Path(self.path).parent.absolute())
+        cgroup_parent = Cgroup(parent_path)
+        return cgroup_parent
+
+    @property
+    def iocontrol_enabled(self) -> bool:
+        with open(f"{self.cgroup_path}/cgroup.controllers", "r") as f:
+            return "io" in f.readline()
+
+    @iocontrol_enabled.setter
+    def iocontrol_enabled(self, enabled_val: bool):
+        set_sysfs(f"{self.cgroup_path}/cgroup.subtree_control", "+io" if enabled_val else "-io")    
+
+    @property
     def iomax(self) -> list[IOMax]:
-        if not self.iocontrol_enabled:
-            raise ValueError("iocontrol not enabled for this group")
+        if self.isroot or not self.parent.iocontrol_enabled:
+            raise ValueError("iocontrol not available for this group")
         lines = []
         with open(f"{self.cgroup_path}/io.max", "r") as f:
             lines = f.readlines()
@@ -226,13 +238,13 @@ class Cgroup(object):
         
     @iomax.setter
     def iomax(self, iomax_val: IOMax):
-        if not self.iocontrol_enabled:
-            raise ValueError("iocontrol not enabled for this group")
+        if self.isroot or not self.parent.iocontrol_enabled:
+            raise ValueError("iocontrol not available for this group")
         set_sysfs(f"{self.cgroup_path}/io.max", iomax_val.to_str())    
 
     @iomax.deleter
     def iomax(self):
-        if not self.iocontrol_enabled:
+        if self.isroot or not self.parent.iocontrol_enabled:
             return
         for iomax_val in self.iomax:
             iomax_val.rbps = iomax_val.wbps = iomax_val.riops = iomax_val.wiops = None
@@ -240,8 +252,8 @@ class Cgroup(object):
     
     @property
     def ioweight(self) -> [IOWeight]:
-        if not self.iocontrol_enabled:
-            raise ValueError("iocontrol not enabled for this group")
+        if self.isroot or not self.parent.iocontrol_enabled:
+            raise ValueError("iocontrol not available for this group")
         lines = []
         with open(f"{self.cgroup_path}/io.weight", "r") as f:
             lines = f.readlines()
@@ -249,26 +261,24 @@ class Cgroup(object):
         
     @ioweight.setter
     def ioweight(self, ioweight_val: IOWeight):
-        if not self.iocontrol_enabled:
-            raise ValueError("iocontrol not enabled for this group")
+        if self.isroot or not self.parent.iocontrol_enabled:
+            raise ValueError("iocontrol not available for this group")
         if type(ioweight_val.weight) != str and (int(ioweight_val.weight) < 1 or int(ioweight_val.weight) > 10_000):
             raise ValueError("Invalid weight")
         set_sysfs(f"{self.cgroup_path}/io.weight", ioweight_val.to_str())    
 
     @ioweight.deleter
     def ioweight(self):
-        if not self.iocontrol_enabled:
+        if self.isroot or not self.parent.iocontrol_enabled:
             return
         for ioweight_val in self.ioweight:
-            if ioweight_val.major_minor == "default":
-                continue
-            ioweight_val.weight = "default"
+            ioweight_val.weight = "100"
             self.ioweight = ioweight_val
 
     @property
     def iobfqweight(self) -> [IOBFQWeight]:
-        if not self.iocontrol_enabled:
-            raise ValueError("iocontrol not enabled for this group")
+        if self.isroot or not self.parent.iocontrol_enabled:
+            raise ValueError("iocontrol not available for this group")
         lines = []
         with open(f"{self.cgroup_path}/io.bfq.weight", "r") as f:
             lines = f.readlines()
@@ -276,45 +286,43 @@ class Cgroup(object):
         
     @iobfqweight.setter
     def iobfqweight(self, iobfqweight_val: IOBFQWeight):
-        if not self.iocontrol_enabled:
-            raise ValueError("iocontrol not enabled for this group")
-        if type(iobfqweight_val.weight) != str and (int(iobfqweight_val.weight) < 1 or int(iobfqweight_val.weight) > 10_000):
+        if self.isroot or not self.parent.iocontrol_enabled:
+            raise ValueError("iocontrol not available for this group")
+        if type(iobfqweight_val.weight) != str and (int(iobfqweight_val.weight) < 1 or int(iobfqweight_val.weight) > 1_000):
             raise ValueError("Invalid weight")
         set_sysfs(f"{self.cgroup_path}/io.bfq.weight", iobfqweight_val.to_str())    
 
     @iobfqweight.deleter
     def iobfqweight(self):
-        if not self.iocontrol_enabled:
+        if self.isroot or not self.parent.iocontrol_enabled:
             return
         for iobfqweight_val in self.iobfqweight:
-            if iobfqweight_val.major_minor == "default":
-                continue
-            iobfqweight_val.weight = "default"
+            iobfqweight_val.weight = "100"
             self.iobfqweight = iobfqweight_val
 
     @property
     def ioprio(self) -> IOPriorityClass:
-        if not self.iocontrol_enabled:
-            raise ValueError("iocontrol not enabled for this group")
+        if self.isroot or not self.parent.iocontrol_enabled:
+            raise ValueError("iocontrol not available for this group")
         with open(f"{self.cgroup_path}/io.prio.class", "r") as f:
             return IOPriorityClass.from_str(f.readline().strip())
             
     @ioprio.setter
     def ioprio(self, prio: IOPriorityClass):
-        if not self.iocontrol_enabled:
-            raise ValueError("iocontrol not enabled for this group")
+        if self.isroot or not self.parent.iocontrol_enabled:
+            raise ValueError("iocontrol not available for this group")
         set_sysfs(f"{self.cgroup_path}/io.prio.class", prio.value)
 
     @ioprio.deleter
     def ioprio(self):
-        if not self.iocontrol_enabled:
-            return
+        if self.isroot or not self.parent.iocontrol_enabled:
+            return 
         self.ioprio = IOPriorityClass.NO_CHANGE        
 
     @property
     def iolatency(self) -> [IOLatency]:
-        if not self.iocontrol_enabled:
-            raise ValueError("iocontrol not enabled for this group")
+        if self.isroot or not self.parent.iocontrol_enabled:
+            raise ValueError("iocontrol not available for this group")
         lines = []
         with open(f"{self.cgroup_path}/io.latency", "r") as f:
             lines = f.readlines()
@@ -322,19 +330,21 @@ class Cgroup(object):
         
     @iolatency.setter
     def iolatency(self, iolatency_val: IOLatency):
-        if not self.iocontrol_enabled:
-            raise ValueError("iocontrol not enabled for this group")
+        if self.isroot or not self.parent.iocontrol_enabled:
+            raise ValueError("iocontrol not available for this group")
         set_sysfs(f"{self.cgroup_path}/io.latency", iolatency_val.to_str())    
 
     @iolatency.deleter
     def iolatency(self):
-        if not self.iocontrol_enabled:
-            return
+        if self.isroot or not self.parent.iocontrol_enabled:
+            return 
         for iolatency_val in self.iolatency:
             iolatency_val.target = 0
             self.iolatency = iolatency_val
 
     def disable_iocontrol(self):
+        if self.isroot:
+            return
         del self.iomax
         del self.ioweight
         del self.iobfqweight
@@ -344,11 +354,19 @@ class Cgroup(object):
 def list_cgroups(path=cgroup_syspath):
     return [folder for folder, _, _ in os.walk(Path(path))][1:]
 
-def create_cgroup(relative_path) -> Cgroup:
+def create_cgroup(relative_path, iocontrol_enabled=True) -> Cgroup:
     cgroup_path = f"{cgroup_syspath}/{relative_path}"
     subprocess.check_call(f"sudo mkdir -m='0755' -p {cgroup_path}", shell=True)
-    set_sysfs(f"{cgroup_path}/cgroup.subtree_control", "+io")
+    cgroup = Cgroup(cgroup_path)
+    cgroup.iocontrol_enabled = iocontrol_enabled
     return Cgroup(cgroup_path)
+
+def create_cgroup_service(relative_path) -> Cgroup:
+    cgroup = create_cgroup(relative_path, False)
+    # Indeed, prio.class is not inherited, but we want it to be... Force it.
+    cgroup_parent = Cgroup(str(Path(cgroup.path).parent.absolute()))
+    cgroup.ioprio = cgroup_parent.ioprio
+    return cgroup
 
 def set_iocost(model: IOCostModel, qos: IOCostQOS):
     set_sysfs(f"{cgroup_syspath}/io.cost.model", model.to_str())    
@@ -370,11 +388,12 @@ def disable_iocost():
         qos.enable = False
         set_iocost(model, qos)
 
-
-def disable_iocontrol():
-    # Disable group control
-    for group in [Cgroup(f"{spath}") for spath in list_cgroups(cgroup_syspath)[1:]]:
+def disable_iocontrol_with_groups(groups: list[Cgroup]):
+    for group in groups:
         group.disable_iocontrol()
-    # Disable global control
     disable_iocost()
-    
+
+def disable_iocontrol(path = cgroup_syspath):
+    disable_iocontrol_with_groups(
+        [Cgroup(f"{spath}") for spath in list_cgroups(path)]
+    )

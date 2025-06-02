@@ -8,6 +8,7 @@ When changing the drive to test on, run:
 # Make sure you are in the README.md's directory
 drive=/dev/nvmeXnY
 ../util/register_nvme.sh ${drive}
+../util/precondition.sh ${drive}
 ```
 
 # Execute benchmarks 
@@ -16,21 +17,32 @@ Make sure your SSD is filled and pre-conditioned. Then run:
 ```bash
 python3 run.py --help
 
-for knob in iomax iopriomq iopriobfq iobfqweight iolatency iocost iocostw; do
+for knob in none mq bfq iomax iopriomq iopriobfq iobfqweight iolatency iocost iocostw; do
     python3 run.py "--${knob}"  
 done 
+```
 
-# Check output, there should be a ".json" and a ".log" for each knob.
+Debug settings during run:
+```bash
+grep . /sys/fs/cgroup/example-workload-*/io.{prio.class,max,latency,weight,bfq.weight} \
+       /sys/fs/cgroup/example-workload-*/*/io.{prio.class,max,latency,weight,bfq.weight} \
+       /sys/block/nvme*/queue/scheduler
+```
+
+Check output, there should be a ".json" and a ".log" for each knob:
+```bash
 ls out/${testdrive}/*.{json, log}
 ```
 **NOTE**: 
-Note the workloads are read-only, so no need to reformat and precondition between runs.
+Note the workloads are read-only, so the drive only needs to be reformatted and preconditioned before the first run.
 
 
 # Plot benchmarks
 
 ```bash
-python3 plot.py 
+for knob in none mq bfq iomax iopriomq iopriobfq iobfqweight iolatency iocost iocostw; do
+    python3 plot.py "--${knob}" 
+done
 
 # Check plots, there should be a ".pdf" for each knob
 ls plots/${testdrive}/*.pdf

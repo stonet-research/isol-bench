@@ -6,6 +6,7 @@ import csv
 import matplotlib.pyplot as plt
 import datetime as dt
 import os.path
+import argparse
 
 from util_sysfs.bench import *
 
@@ -85,10 +86,10 @@ def example_plot(file_out: str, preamble: str, labels: list[str]):
     fig.savefig(f'./plots/{file_out}.pdf', bbox_inches="tight")
 
 def plot_iomax_example():
-    example_plot('io.max', 'io.max-True', ['A - io.max @ 1500 MiB/s', 'B - io.max @ 500 MiB/s', 'C - io.max @ 500 MiB/s'])
+    example_plot('io.max', 'io.max', ['A - io.max @ 1500 MiB/s', 'B - io.max @ 500 MiB/s', 'C - io.max @ 500 MiB/s'])
 
 def plot_ioprio(scheduler: str):
-    example_plot(f'io.prio{scheduler}', f'io.prio_class+{scheduler}-True', ['A - promote-to-rt', 'B - idle', 'C - restrict-to-be'])
+    example_plot(f'io.prio{scheduler}', f'io.prio_class+{scheduler}', ['A - promote-to-rt', 'B - idle', 'C - restrict-to-be'])
 
 def plot_ioprio_mq_example():
     plot_ioprio('mq')
@@ -96,27 +97,67 @@ def plot_ioprio_mq_example():
 def plot_ioprio_bfq_example():
     plot_ioprio('bfq')
 
+def plot_ioprio_kyber_example():
+    plot_ioprio('kyber')
+
 def plot_iowbfq_example():
-    example_plot('io.bfq.weight', 'io.bfq.weight-True', ['A - io.bfq.weight @ 1000', 'B - io.bfq.weight @ 1', 'C - io.bfq.weight @ 100'])
+    example_plot('io.bfq.weight', 'io.bfq.weight', ['A - io.bfq.weight @ 1000', 'B - io.bfq.weight @ 1', 'C - io.bfq.weight @ 100'])
 
 def plot_iolatency_example():
-    example_plot('io.latency', 'io.latency-True', ['A - io.latency @ 20us', 'B - io.latency @ 1000us', 'C - io.latency @ 100us'])
+    example_plot('io.latency', 'io.latency', ['A - io.latency @ 20us', 'B - io.latency @ 1000us', 'C - io.latency @ 100us'])
 
 def plot_iocost_example():
-    example_plot('io.cost', 'io.cost-True', ['A', 'B', 'C'])
+    example_plot('io.cost', 'io.cost', ['A', 'B', 'C'])
 
 def plot_iocostw_example():
-    example_plot('io.costw', 'io.cost+weights-True', ['A - io.weight @ 1000', 'B - io.weight @ 1', 'C - io.weight @ 100'])
+    example_plot('io.costw', 'io.cost+weights', ['A - io.weight @ 1000', 'B - io.weight @ 1', 'C - io.weight @ 100'])
 
 def plot_empty():
-    example_plot('none', 'io.cost-False', ['A', 'B', 'C'])
+    example_plot('none', 'none', ['A', 'B', 'C'])
 
-plot_empty()
-plot_iomax_example()
-plot_ioprio_mq_example()
-plot_ioprio_bfq_example()
-plot_iowbfq_example()
-plot_iolatency_example()
-plot_iocost_example()
-plot_iocostw_example()
-# add your own here
+def plot_mq():
+    example_plot('mq', 'mq', ['A', 'B', 'C'])
+
+def plot_bfq():
+    example_plot('bfq', 'bfq', ['A', 'B', 'C'])
+
+PLOT_OPTIONS = {
+    'none': plot_empty,
+    'mq': plot_mq,
+    'bfq': plot_bfq,
+    'iomax': plot_iocost_example,
+    'iopriomq': plot_ioprio_mq_example,
+    'iopriobfq': plot_ioprio_bfq_example,
+    'iopriokyber': plot_ioprio_kyber_example,
+    'iobfqweight': plot_iowbfq_example,
+    'iolatency': plot_iolatency_example,
+    'iocost': plot_iocost_example,
+    'iocostw': plot_iocostw_example 
+    # add your own here
+}
+
+def main(knobs_to_plot):
+    for knob in knobs_to_plot:
+        knob()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Plot example script data"
+    )
+
+    for key in PLOT_OPTIONS.keys():
+        parser.add_argument(f"--{key}", type=bool, required=False, default=False)
+    args = parser.parse_args()
+
+    # Determine knobs to plot
+    knobs_to_plot = []
+    for arg, val in vars(args).items():
+        if arg not in PLOT_OPTIONS:
+            raise ValueError(f"Knob {arg} not known")
+        elif val:
+            knobs_to_plot.append(PLOT_OPTIONS[arg])
+
+    if not len(knobs_to_plot):
+        knobs_to_plot = list(PLOT_OPTIONS.values())
+    
+    main(knobs_to_plot)

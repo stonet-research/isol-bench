@@ -17,230 +17,54 @@ class IOKnob:
     configure_cgroups: Callable[[nvme.NVMeDevice, list[cgroups.Cgroup]], None]
     setup_fio_jobs: Callable[[list[cgroups.Cgroup]], fio.FioGlobalJob]
 
+def example_job_setup(exp_cgroups: list[cgroups.Cgroup]):
+  sjobs = []
+  for sjob in [
+    (1, 'b', '0s', '50s'),
+    (0, 'a', '10s', '70s'),
+    (2, 'c', '20s', '50s')
+  ]:
+    index  = sjob[0]
+    sjob_name   = sjob[1]
+    sjob_start  = sjob[2]
+    sjob_runtime = sjob[3]
+    sjob_cgroup_path = f"{exp_cgroups[index].subpath}/fio-workload-{sjob_name}.service"
+    
+    sjob = fio.FioSubJob(sjob_name)
+    sjob.add_options([
+      fio.DelayJobOption(sjob_start),
+      fio.TimedOption('0s', sjob_runtime),
+      fio.RateOption('1500m', '', ''),
+      fio.QDOption(8),
+      fio.RequestSizeOption(f"{64 * 1024}"),
+      fio.ConcurrentWorkerOption(1),
+      fio.CgroupOption(sjob_cgroup_path)
+    ])
+    sjobs.append(sjob)
+  
+    cgroup = cgroups.create_cgroup(sjob_cgroup_path)
+    cgroup.ioprio = exp_cgroups[index].ioprio
+    cgroup.iocontrol_enabled = False
+       
+  return sjobs
+
 def iomax_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
-    job_a = fio.FioSubJob('B')
-    job_a.add_options([
-      fio.DelayJobOption('0s'),
-      fio.TimedOption('0s', '50s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.CgroupOption(f"{exp_cgroups[1].subpath}/fio-workload-b.service")
-    ])
-
-    job_b = fio.FioSubJob('A')
-    job_b.add_options([
-      fio.DelayJobOption('10s'),
-      fio.TimedOption('0s', '70s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.CgroupOption(f"{exp_cgroups[0].subpath}/fio-workload-a.service")
-    ])
-
-    job_c = fio.FioSubJob('C')
-    job_c.add_options([
-      fio.DelayJobOption('20s'),
-      fio.TimedOption('0s', '50s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.CgroupOption(f"{exp_cgroups[2].subpath}/fio-workload-c.service")
-    ])
-
-    return [job_a, job_b, job_c]
+  return example_job_setup(exp_cgroups)
 
 def ioprio_mq_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
-    job_a = fio.FioSubJob('A')
-    job_a.add_options([
-      fio.DelayJobOption('0s'),
-      fio.TimedOption('0s', '50s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[1].subpath}/fio-workload-b.service")
-    ])
-
-    job_b = fio.FioSubJob('B')
-    job_b.add_options([
-      fio.DelayJobOption('10s'),
-      fio.TimedOption('0s', '70s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[0].subpath}/fio-workload-a.service")
-    ])
-
-    job_c = fio.FioSubJob('C')
-    job_c.add_options([
-      fio.DelayJobOption('20s'),
-      fio.TimedOption('0s', '50s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[2].subpath}/fio-workload-c.service")
-    ]) 
-
-    cgroup_a = cgroups.create_cgroup(f"example-workload-0.slice/fio-workload-a.service")
-    cgroup_a.ioprio = exp_cgroups[0].ioprio
-    cgroup_a.iocontrol_enabled = False
-    cgroup_b = cgroups.create_cgroup(f"example-workload-1.slice/fio-workload-b.service")
-    cgroup_b.ioprio = exp_cgroups[1].ioprio
-    cgroup_b.iocontrol_enabled = False
-    cgroup_c = cgroups.create_cgroup(f"example-workload-2.slice/fio-workload-c.service")
-    cgroup_c.ioprio = exp_cgroups[2].ioprio
-    cgroup_c.iocontrol_enabled = False
-
-    return [job_a, job_b, job_c]
+  return example_job_setup(exp_cgroups)
 
 def ioprio_bfq_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
-    job_a = fio.FioSubJob('A')
-    job_a.add_options([
-      fio.DelayJobOption('0s'),
-      fio.TimedOption('0s', '50s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[1].subpath}/fio-workload-b.service")
-    ])
-
-    job_b = fio.FioSubJob('B')
-    job_b.add_options([
-      fio.DelayJobOption('10s'),
-      fio.TimedOption('0s', '70s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[0].subpath}/fio-workload-a.service")
-    ])
-
-    job_c = fio.FioSubJob('C')
-    job_c.add_options([
-      fio.DelayJobOption('20s'),
-      fio.TimedOption('0s', '50s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[2].subpath}/fio-workload-c.service")
-    ]) 
-
-    cgroup_a = cgroups.create_cgroup(f"example-workload-0.slice/fio-workload-a.service")
-    cgroup_a.ioprio = exp_cgroups[0].ioprio
-    cgroup_a.iocontrol_enabled = False
-    cgroup_b = cgroups.create_cgroup(f"example-workload-1.slice/fio-workload-b.service")
-    cgroup_b.ioprio = exp_cgroups[1].ioprio
-    cgroup_b.iocontrol_enabled = False
-    cgroup_c = cgroups.create_cgroup(f"example-workload-2.slice/fio-workload-c.service")
-    cgroup_c.ioprio = exp_cgroups[2].ioprio
-    cgroup_c.iocontrol_enabled = False
-
-    return [job_a, job_b, job_c]
+  return example_job_setup(exp_cgroups)
 
 def io_bfq_weight_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
-    job_a = fio.FioSubJob('A')
-    job_a.add_options([
-      fio.DelayJobOption('0s'),
-      fio.TimedOption('0s', '50s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[1].subpath}/fio-workload-b.service")
-    ])
-
-    job_b = fio.FioSubJob('B')
-    job_b.add_options([
-      fio.DelayJobOption('10s'),
-      fio.TimedOption('0s', '70s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[0].subpath}/fio-workload-a.service")
-    ])
-
-    job_c = fio.FioSubJob('C')
-    job_c.add_options([
-      fio.DelayJobOption('20s'),
-      fio.TimedOption('0s', '50s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[2].subpath}/fio-workload-c.service")
-    ]) 
-
-    cgroup_a = cgroups.create_cgroup(f"example-workload-0.slice/fio-workload-a.service")
-    cgroup_a.ioprio = exp_cgroups[0].ioprio
-    cgroup_a.iocontrol_enabled = False
-    cgroup_b = cgroups.create_cgroup(f"example-workload-1.slice/fio-workload-b.service")
-    cgroup_b.ioprio = exp_cgroups[1].ioprio
-    cgroup_b.iocontrol_enabled = False
-    cgroup_c = cgroups.create_cgroup(f"example-workload-2.slice/fio-workload-c.service")
-    cgroup_c.ioprio = exp_cgroups[2].ioprio
-    cgroup_c.iocontrol_enabled = False
-
-    return [job_a, job_b, job_c]
+  return example_job_setup(exp_cgroups)
 
 def io_latency_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
-    job_a = fio.FioSubJob('A')
-    job_a.add_options([
-      fio.DelayJobOption('0s'),
-      fio.TimedOption('0s', '50s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[1].subpath}/fio-workload-b.service")
-    ])
-
-    job_b = fio.FioSubJob('B')
-    job_b.add_options([
-      fio.DelayJobOption('10s'),
-      fio.TimedOption('0s', '70s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[0].subpath}/fio-workload-a.service")
-    ])
-
-    job_c = fio.FioSubJob('C')
-    job_c.add_options([
-      fio.DelayJobOption('20s'),
-      fio.TimedOption('0s', '50s'),
-      fio.RateOption('1500m', '', ''),
-      fio.QDOption(8),
-      fio.RequestSizeOption(f"{64 * 1024}"),
-      fio.ConcurrentWorkerOption(1),
-      fio.AllowedCPUsOption('2'),
-      fio.CgroupOption(f"{exp_cgroups[2].subpath}/fio-workload-c.service")
-    ]) 
-
-    return [job_a, job_b, job_c]
+  return example_job_setup(exp_cgroups)
 
 def io_cost_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
-  return io_latency_setup_fio_jobs(exp_cgroups)
+  return example_job_setup(exp_cgroups)
 
 def global_setup_fio_job(device_name: str) -> fio.FioGlobalJob:
     job = fio.FioGlobalJob()

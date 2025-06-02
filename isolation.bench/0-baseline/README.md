@@ -16,7 +16,7 @@ Make sure your SSD is filled and pre-conditioned. Then run:
 ```bash
 python3 run.py --help
 
-for knob in iomax iopriomq iopriobfq ioweightbfq iolatency iocost; do
+for knob in iomax iopriomq iopriobfq iobfqweight iolatency iocost iocostw; do
     python3 run.py "--${knob}"  
 done 
 
@@ -30,9 +30,7 @@ Note the workloads are read-only, so no need to reformat and precondition betwee
 # Plot benchmarks
 
 ```bash
-for knob in io.max io.prio.mq io.prio.bfq io.weight.bfq io.latency io.cost; do
-    python3 plot.py ${knob} ${testdrive} 
-done
+python3 plot.py 
 
 # Check plots, there should be a ".pdf" for each knob
 ls plots/${testdrive}/*.pdf

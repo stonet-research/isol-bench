@@ -231,6 +231,10 @@ IO_KNOBS = {
 }
 
 if __name__ == "__main__":
+    if not check_kernel_requirements():
+      print("The kernel does not meet the necessary requirements, please check README.md")
+      exit(1)
+
     parser = argparse.ArgumentParser(
         description="Example experiments for all io.knobs"
     )

@@ -55,7 +55,7 @@ def iocost_inactive_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups:
 def setup_cgroups() -> list[cgroups.Cgroup]:
     return [cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_PATH_PREAMBLE}-{i}.slice") for i in range(0,EXPERIMENT_MAX_TENANT_COUNT)]
 
-def setup_jobs(device_name: str, exp_cgroups: list[cgroups.Cgroup], numjobs: int) -> fio.FioGlobalJob:
+def setup_jobs(device_name: str, exp_cgroups: list[cgroups.Cgroup], numjobs: int, cgroups_active: bool) -> fio.FioGlobalJob:
     job = fio.FioGlobalJob()
     job.add_options([
         fio.TargetOption(device_name),
@@ -63,7 +63,7 @@ def setup_jobs(device_name: str, exp_cgroups: list[cgroups.Cgroup], numjobs: int
         fio.DirectOption(True),
         fio.GroupReportingOption(True),
         fio.ThreadOption(False), # < we need to set this because ioprio is not transferred on fork (shocking I know)
-        fio.HighTailLatencyOption(),
+        fio.ExtraHighTailLatencyOption(),
         fio.SizeOption("100%"),
         fio.IOEngineOption(fio.IOEngine.IO_URING),
         fio.Io_uringFixedBufsOption(True),
@@ -71,23 +71,24 @@ def setup_jobs(device_name: str, exp_cgroups: list[cgroups.Cgroup], numjobs: int
         fio.QDOption(1),
         fio.RequestSizeOption(f"{4 * 1024}"),
         fio.ConcurrentWorkerOption(1),
-        fio.TimedOption('20s', '30s')
+        fio.TimedOption('20s', '60s'),
+        fio.AllowedCPUsOption('2'),
     ])   
 
-    for i in range(numjobs):
-        sjob_cgroup_path = f"{exp_cgroups[i].subpath}/fio-workload.service"
+    for i in range(numjobs if cgroups_active else 1):
+        sjob_cgroup_path = f"{exp_cgroups[i].subpath}/fio-workload.service" if cgroups_active else f"{exp_cgroups[0].subpath}/fio-workload.service"
         # We need to create service group as well. 
         cgroups.create_cgroup_service(sjob_cgroup_path)
 
         sjob = fio.FioSubJob(f'j{i}')
         sjob.add_options([
-            fio.AllowedCPUsOption('2'),
-            fio.CgroupOption(sjob_cgroup_path)
+            fio.CgroupOption(sjob_cgroup_path),
+            fio.ConcurrentWorkerOption(1 if cgroups_active else numjobs)
         ])
         job.add_job(sjob)
     return job
 
-def main(knobs_to_test: list[IOKnob], active: bool):
+def main(knobs_to_test: list[IOKnob], active: bool, cgroups_active: bool):
     nvme_device = get_nvmedev()
     outdir = f'./out/{nvme_device.eui}'
     try:
@@ -112,6 +113,9 @@ def main(knobs_to_test: list[IOKnob], active: bool):
         else:
             knob.configure_cgroups_inactive(nvme_device, exp_cgroups)
 
+        for group in exp_cgroups:
+            group.force_cpuset_cpus('2')
+
         try:
             os.mkdir(f'./tmp/{knob.name}')
             os.mkdir(f'./out/{nvme_device.eui}/{knob.name}')
@@ -120,11 +124,22 @@ def main(knobs_to_test: list[IOKnob], active: bool):
 
         for numjobs in [1, 2, 4, 8, 16, 32, 64, 128, 256]:
             print(f"Generating experiment [numjobs={numjobs}]")        
-            job = setup_jobs(nvme_device.syspath, exp_cgroups, numjobs)
-            job_gen.generate_job_file(f'./tmp/{knob.name}/{numjobs}', job)
+            job = setup_jobs(nvme_device.syspath, exp_cgroups, numjobs, cgroups_active)
+            job_gen.generate_job_file(f'./tmp/{knob.name}/{numjobs}-{cgroups_active}', job)
 
             print(f"Running experiment [numjobs={numjobs}]")        
-            job_runner.run_job(f'./tmp/{knob.name}/{numjobs}', f'./{outdir}/{knob.name}/{active}-{numjobs}.json')
+            fioproc = job_runner.run_job_deferred(f'./tmp/{knob.name}/{numjobs}-{cgroups_active}', f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.json')
+            be_human()
+            pidstat = start_pidstat(f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.pidstat', '10')            
+            sar = start_sar(f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.sar', '1-15')            
+            fioproc.wait()
+            pidstat.terminate()
+            pidstat.wait()
+            kill_sar()
+            sar.wait()
+
+        for group in exp_cgroups:
+            group.force_cpuset_cpus('')
     cgroups.disable_iocontrol_with_groups(exp_cgroups)
     nvme_device.io_scheduler = original_nvme_scheduler
 
@@ -146,6 +161,7 @@ if __name__ == "__main__":
         description="Example experiments for all io.knobs"
     )
     parser.add_argument(f"--active", type=bool, required=False, default=False)
+    parser.add_argument(f"--cgroups", type=bool, required=False, default=False)
     for key in IO_KNOBS.keys():
         parser.add_argument(f"--{key}", type=bool, required=False, default=False)
     args = parser.parse_args()
@@ -153,16 +169,19 @@ if __name__ == "__main__":
     # Determine knobs to test
     knobs_to_test = []
     active = False
+    cgroups_active = False
     for arg, val in vars(args).items():
-        if arg not in IO_KNOBS and arg != "active":
+        if arg not in IO_KNOBS and arg != "active" and arg != "cgroups":
             raise ValueError(f"Knob {arg} not known")
         elif arg == "active":
             active = val 
+        elif arg == "cgroups":
+            cgroups_active = val 
         elif val:
             knobs_to_test.append(IO_KNOBS[arg])
 
     if not len(knobs_to_test):
         knobs_to_test = list(IO_KNOBS.values())
 
-    main(knobs_to_test, active)
+    main(knobs_to_test, active, cgroups_active)
 

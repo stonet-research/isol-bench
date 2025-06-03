@@ -227,6 +227,9 @@ class Cgroup(object):
     def iocontrol_enabled(self, enabled_val: bool):
         set_sysfs(f"{self.cgroup_path}/cgroup.subtree_control", "+io" if enabled_val else "-io")    
 
+    def force_cpuset_cpus(self, cpu: str):
+        set_sysfs(f"{self.cgroup_path}/cpuset.cpus", cpu)    
+
     @property
     def iomax(self) -> list[IOMax]:
         if self.isroot or not self.parent.iocontrol_enabled:

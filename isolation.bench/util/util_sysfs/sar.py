@@ -5,6 +5,11 @@ def start_sar(out: str, core: str):
     pidstat = subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT)
     return pidstat
 
+def start_sar_mem(out: str, core: str):
+    cmd = f'sudo taskset -c {core} sudo sar -P {core} -r 1 60 2>&1 1>{out}'
+    pidstat = subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT)
+    return pidstat
+
 def kill_sar():
     cmd = f'sudo pkill -9 ^sar$'
     return subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT)

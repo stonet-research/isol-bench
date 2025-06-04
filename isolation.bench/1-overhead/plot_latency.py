@@ -9,6 +9,7 @@ import os.path
 import argparse
 
 from util_sysfs.bench import *
+from util_sysfs.perf import get_perf_cycles
 from plot_utils import *
 import matplotlib.pyplot as plt
 
@@ -51,12 +52,12 @@ def parse_fio_cpu_avg(filename, jj:int):
 def resolve_path(knob, active, jobs, cgroups_active):
     return f'./out/{nvme_drive.eui}/{knob}/{active}-{jobs}-{cgroups_active}'
 
+def to_one_digit(v):
+        return round(v*10)/10 
+
 def plot_cdf(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, lat_stat = "sar"):
     """ Plot a CDF plot of the latency """
     
-    def to_one_digit(v):
-        return round(v*10)/10 
-
     for jobs in NUMJOBS:
         fig, ax = plt.subplots()
 
@@ -144,8 +145,27 @@ def plot_cpu(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
     os.makedirs(f'./plots/{nvme_drive.eui}', exist_ok = True)
     fig.savefig(outname, bbox_inches="tight")
 
+def plot_cpu_metrics(nvme_drive, knobs_to_plot):
+    for knob in knobs_to_plot:
+        ipc = []
+        ctxs = []
+        for i in range(0,5):
+            file_preamble = f'./out/{nvme_drive.eui}/{knob}/True-256-True-perf-{i}' 
+            c = get_perf_cycles(f'{file_preamble}.perf')
+            j = parse_fio_json(f'{file_preamble}.json')
+            iops_mean = j['jobs'][0]['read']['iops_mean']
+            ctx = j['jobs'][0]['ctx']
+            total = j['jobs'][0]['read']['total_ios']
+            iops_per_cycle = c / (iops_mean * 30)
+            iops_per_ctx = ctx  / total 
+            ipc.append(iops_per_cycle)
+            ctxs.append(iops_per_ctx)
+        print('knob:', knob, 'Cycles per IOP:', f'{to_one_digit(avg(ipc) / 1000)}K', 'ctx per IOP', avg(ctxs))
+    exit(1)
+
 def main(knobs_to_plot, nvme_drive):
     set_standard_font()
+    plot_cpu_metrics(nvme_drive, knobs_to_plot)
     for active in [True, False]:
         for cgroups_active in [True, False]:
             for lat_stat in ["fio", "sar", "pidstat"]:

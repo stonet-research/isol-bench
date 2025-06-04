@@ -1,36 +1,28 @@
 import subprocess
 
-def perf_record(out: str, core: str):    
-    cmd = f'sudo taskset -c {core} sudo  record -a -e cycles,instructions -F 99'
+perf_bin = f"/home/user/bin/perf"
+
+def perf_record(out: str, core: str, glob: bool, running_time: int):    
+    cmd = f'sudo taskset -c {core} sudo {perf_bin} record -a -e cycles,instructions -F 99 --overwrite -o {out} {"-g" if glob else ""}'
+    if running_time:
+        cmd = f"{cmd} -- sleep {running_time}"
     subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT)
 
-def kill_pidstat():
-    cmd = f'sudo pkill -9 ^pidstat$'
-    return subprocess.check_call(cmd, shell=True, stderr=subprocess.STDOUT)
+def perf_report(inf: str, out: str):
+    cmd = f'sudo {perf_bin} report -n -m --stdio --full-source-path --source -s symbol -i {inf} > {out}'
+    subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT)
 
-def parse_pidstat(filename: str):
-    lpidtemp = []
+def perf_stat(out: str, core: str, glob: bool, running_time: int):    
+    cmd = f'sudo taskset -c {core} sudo {perf_bin} stat -a -e cycles,instructions,cache-misses,cache-references -r 1 -o {out} {"-a" if glob else ""}'
+    if running_time:
+        cmd = f"{cmd} -- sleep {running_time}"
+    subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT)
+
+def get_perf_cycles(filename: str):
     with open(filename) as file:
-        usr = []
-        sys = []
-
-        tmp = []
         for line in file:
-            l = line.split()
-            if 'CPU  Command' in line and len(tmp):
-                lpidtemp.append(sum(tmp))
-                tmp = []
-            if len(l) > 2 and '-' in l[3]:
-                continue 
-            try:
-                tmp.append(float(l[5]) + float(l[6]))
-            except:
-                continue
-        if len(tmp):
-            lpidtemp.append(sum(tmp))
-    return lpidtemp    
-
-
-
-
-def
+            if 'cycles' in line:
+                l = line.strip().split(' ')
+                c = l[0].replace(",","")
+                return int(c)
+    return None

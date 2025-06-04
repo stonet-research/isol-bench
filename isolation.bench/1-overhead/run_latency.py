@@ -10,6 +10,7 @@ import fio
 from util_sysfs import cgroups as cgroups
 from util_sysfs import nvme as nvme
 from util_sysfs.bench import *
+from util_sysfs.perf import *
 
 EXPERIMENT_CGROUP_PATH_PREAMBLE=f"example-workload"
 EXPERIMENT_MAX_TENANT_COUNT=256
@@ -103,7 +104,7 @@ IO_KNOBS = {
     "iocost": IOKnob("iocost", iocost_active_configure_cgroups, iocost_inactive_configure_cgroups),
 }
 
-def main(knobs_to_test: list[IOKnob], active: bool, cgroups_active: bool):
+def main(knobs_to_test: list[IOKnob], active: bool, cgroups_active: bool, perf_active: bool):
     nvme_device = get_nvmedev()
     outdir = f'./out/{nvme_device.eui}'
     try:
@@ -143,15 +144,33 @@ def main(knobs_to_test: list[IOKnob], active: bool, cgroups_active: bool):
             job_gen.generate_job_file(f'./tmp/{knob.name}/{numjobs}-{cgroups_active}', job)
 
             print(f"Running experiment [numjobs={numjobs}]")        
-            fioproc = job_runner.run_job_deferred(f'./tmp/{knob.name}/{numjobs}-{cgroups_active}', f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.json')
-            do_sleep(10)
-            pidstat = start_pidstat(f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.pidstat', '10')            
-            sar = start_sar(f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.sar', '1-15')            
-            fioproc.wait()
-            pidstat.terminate()
-            pidstat.wait()
-            kill_sar()
-            sar.wait()
+            
+            if perf_active:
+                # mem
+                fioproc = job_runner.run_job_deferred(f'./tmp/{knob.name}/{numjobs}-{cgroups_active}', f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}-perf-mem.json')
+                do_sleep(10)
+                sar = start_sar_mem(f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.sarmem', '1-15')            
+                fioproc.wait()
+                kill_sar()
+                sar.wait()
+                
+                for repetitions in range(0, 10):
+                    # cycles
+                    fioproc = job_runner.run_job_deferred(f'./tmp/{knob.name}/{numjobs}-{cgroups_active}', f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}-perf-{repetitions}.json')
+                    do_sleep(40)
+                    perf_stat(f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}-perf-{repetitions}.perf', '10', True, 30)
+                    fioproc.wait()
+
+            else:
+                fioproc = job_runner.run_job_deferred(f'./tmp/{knob.name}/{numjobs}-{cgroups_active}', f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.json')
+                do_sleep(10)
+                pidstat = start_pidstat(f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.pidstat', '10')            
+                sar = start_sar(f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.sar', '1-15')            
+                fioproc.wait()
+                pidstat.terminate()
+                pidstat.wait()
+                kill_sar()
+                sar.wait()
 
         for group in exp_cgroups:
             group.force_cpuset_cpus('')
@@ -168,6 +187,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(f"--active", type=bool, required=False, default=False)
     parser.add_argument(f"--cgroups", type=bool, required=False, default=False)
+    parser.add_argument(f"--perf", type=bool, required=False, default=False)
+    parser.add_argument(f"--numjobs", type=int, required=False, default=0)
     for key in IO_KNOBS.keys():
         parser.add_argument(f"--{key}", type=bool, required=False, default=False)
     args = parser.parse_args()
@@ -176,18 +197,21 @@ if __name__ == "__main__":
     knobs_to_test = []
     active = False
     cgroups_active = False
+    perf_active = False
     for arg, val in vars(args).items():
-        if arg not in IO_KNOBS and arg != "active" and arg != "cgroups":
-            raise ValueError(f"Knob {arg} not known")
-        elif arg == "active":
+        if arg == "active":
             active = val 
         elif arg == "cgroups":
             cgroups_active = val 
-        elif val:
+        elif arg == "perf":
+            perf_active = val
+        elif arg == "numjobs":
+            NUMJOBS = [int(val)]
+        else:
             knobs_to_test.append(IO_KNOBS[arg])
 
     if not len(knobs_to_test):
         knobs_to_test = list(IO_KNOBS.values())
 
-    main(knobs_to_test, active, cgroups_active)
+    main(knobs_to_test, active, cgroups_active, perf_active)
 

@@ -13,6 +13,7 @@ from util_sysfs.bench import *
 
 EXPERIMENT_CGROUP_PATH_PREAMBLE=f"example-workload"
 EXPERIMENT_MAX_TENANT_COUNT=256
+NUMJOBS = [2**i for i in range(0,9)]
 
 @dataclass
 class IOKnob:
@@ -27,6 +28,11 @@ def iomax_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: li
     major_minor = nvme_device.major_minor
     for group in exp_cgroups:
         group.iomax = cgroups.IOMax(major_minor, 1024 * 1024 * 500, 1024 * 1024 * 500, 1_000_000, 1_000_000)
+
+def iomax_inactive_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    major_minor = nvme_device.major_minor
+    for group in exp_cgroups:
+        group.iomax = cgroups.IOMax(major_minor, 1024 * 1024 * 5000, 1024 * 1024 * 5000, 10_000_000, 10_000_000)
 
 def bfq_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     nvme_device.io_scheduler = nvme.IOScheduler.BFQ
@@ -88,6 +94,15 @@ def setup_jobs(device_name: str, exp_cgroups: list[cgroups.Cgroup], numjobs: int
         job.add_job(sjob)
     return job
 
+IO_KNOBS = {
+    "none": IOKnob("none", none_configure_cgroups, none_configure_cgroups),
+    "bfq": IOKnob("bfq", bfq_active_configure_cgroups, bfq_active_configure_cgroups),
+    "mq": IOKnob("mq", mq_active_configure_cgroups, mq_active_configure_cgroups),
+    "iomax": IOKnob("iomax", iomax_active_configure_cgroups, iomax_inactive_configure_cgroups),
+    "iolat": IOKnob("iolat", iolat_active_configure_cgroups, iolat_inactive_configure_cgroups),
+    "iocost": IOKnob("iocost", iocost_active_configure_cgroups, iocost_inactive_configure_cgroups),
+}
+
 def main(knobs_to_test: list[IOKnob], active: bool, cgroups_active: bool):
     nvme_device = get_nvmedev()
     outdir = f'./out/{nvme_device.eui}'
@@ -122,14 +137,14 @@ def main(knobs_to_test: list[IOKnob], active: bool, cgroups_active: bool):
         except:
             pass
 
-        for numjobs in [1, 2, 4, 8, 16, 32, 64, 128, 256]:
+        for numjobs in NUMJOBS:
             print(f"Generating experiment [numjobs={numjobs}]")        
             job = setup_jobs(nvme_device.syspath, exp_cgroups, numjobs, cgroups_active)
             job_gen.generate_job_file(f'./tmp/{knob.name}/{numjobs}-{cgroups_active}', job)
 
             print(f"Running experiment [numjobs={numjobs}]")        
             fioproc = job_runner.run_job_deferred(f'./tmp/{knob.name}/{numjobs}-{cgroups_active}', f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.json')
-            be_human()
+            do_sleep(10)
             pidstat = start_pidstat(f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.pidstat', '10')            
             sar = start_sar(f'./{outdir}/{knob.name}/{active}-{numjobs}-{cgroups_active}.sar', '1-15')            
             fioproc.wait()
@@ -142,15 +157,6 @@ def main(knobs_to_test: list[IOKnob], active: bool, cgroups_active: bool):
             group.force_cpuset_cpus('')
     cgroups.disable_iocontrol_with_groups(exp_cgroups)
     nvme_device.io_scheduler = original_nvme_scheduler
-
-IO_KNOBS = {
-    "none": IOKnob("none", none_configure_cgroups, none_configure_cgroups),
-    "bfq": IOKnob("bfq", bfq_active_configure_cgroups, bfq_active_configure_cgroups),
-    "mq": IOKnob("mq", mq_active_configure_cgroups, mq_active_configure_cgroups),
-    "iomax": IOKnob("iomax", iomax_active_configure_cgroups, iomax_active_configure_cgroups),
-    "iolat": IOKnob("iolat", iolat_active_configure_cgroups, iolat_inactive_configure_cgroups),
-    "iocost": IOKnob("iocost", iocost_active_configure_cgroups, iocost_inactive_configure_cgroups),
-}
 
 if __name__ == "__main__":
     if not check_kernel_requirements():

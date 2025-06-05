@@ -16,3 +16,9 @@ def set_font(size):
 
 def set_standard_font():
     set_font(21)
+
+def jains_fairness_index(l: list[float]):
+    n = len(l)
+    sum_l = sum(l)
+    sum_squares_l = sum([ll * ll for ll in l])
+    f = (sum_l * sum_l) / (n * sum_squares_l)

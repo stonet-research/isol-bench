@@ -149,7 +149,7 @@ def plot_cpu_metrics(nvme_drive, knobs_to_plot):
     for knob in knobs_to_plot:
         ipc = []
         ctxs = []
-        for i in range(0,5):
+        for i in range(0,10):
             file_preamble = f'./out/{nvme_drive.eui}/{knob}/True-256-True-perf-{i}' 
             c = get_perf_cycles(f'{file_preamble}.perf')
             j = parse_fio_json(f'{file_preamble}.json')
@@ -160,7 +160,8 @@ def plot_cpu_metrics(nvme_drive, knobs_to_plot):
             iops_per_ctx = ctx  / total 
             ipc.append(iops_per_cycle)
             ctxs.append(iops_per_ctx)
-        print('knob:', knob, 'Cycles per IOP:', f'{to_one_digit(avg(ipc) / 1000)}K', 'ctx per IOP', avg(ctxs))
+        print('knob:', knob, 'Cycles per IOP:', f'{to_one_digit(avg(ipc) / 1000)}K', 'ctx per IOP', to_one_digit(avg(ctxs)))
+        print('knob:', knob, 'Cycles per IOP:', f'{(avg(ipc) / 1000)}K', 'ctx per IOP', avg(ctxs))
     exit(1)
 
 def main(knobs_to_plot, nvme_drive):

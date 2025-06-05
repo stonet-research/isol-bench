@@ -54,10 +54,12 @@ def iolat_inactive_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: 
 def iocost_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 89698, 110036, 1063126016, 135560, 130734)
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1000000, 95.00, 1000000, 50.00, 150.00)
+    set_iocost(model, qos)
 
 def iocost_inactive_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840*10, 89698*10, 110036*10, 1063126016*10, 135560*10, 130734*10)
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1000000, 95.00, 1000000, 50.00, 150.00)
+    cgroups.set_iocost(model, qos)
 
 def setup_cgroups() -> list[cgroups.Cgroup]:
     return [cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_PATH_PREAMBLE}-{i}.slice") for i in range(0,EXPERIMENT_MAX_TENANT_COUNT)]

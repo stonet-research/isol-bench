@@ -1,5 +1,9 @@
 import subprocess
 import sys
+import time
+
+from .sar import *
+from .pidstat import *
 
 def check_kernel_requirements() -> bool:
     kernel = subprocess.check_output('uname -r 2>&1', shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding).strip()
@@ -23,11 +27,5 @@ def exec_cmd(cmd, sudo=True):
 def set_sysfs(path, value):
     subprocess.check_call(f"echo {value} | sudo tee {path} > /dev/null", shell=True)
 
-def start_pidstat(procname: str, out: str):
-    fiopids = subprocess.check_output('pgrep ^fio | paste -sd', shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding).strip()
-    pid = subprocess.Popen(f'sudo taskset -c 10 sudo pidstat  -p {fiopids} -t 1 -u 2>&1 1>{out} &', shell=True, stderr=subprocess.STDOUT)
-    sleep(1)
-    return pid
-
-def terminate_cmd(pid):
-    pid.terminate()
+def do_sleep(t: int):
+    time.sleep(t)

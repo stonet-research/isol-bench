@@ -227,6 +227,9 @@ class Cgroup(object):
     def iocontrol_enabled(self, enabled_val: bool):
         set_sysfs(f"{self.cgroup_path}/cgroup.subtree_control", "+io" if enabled_val else "-io")    
 
+    def force_cpuset_cpus(self, cpu: str):
+        set_sysfs(f"{self.cgroup_path}/cpuset.cpus", cpu)    
+
     @property
     def iomax(self) -> list[IOMax]:
         if self.isroot or not self.parent.iocontrol_enabled:
@@ -373,20 +376,32 @@ def set_iocost(model: IOCostModel, qos: IOCostQOS):
     set_sysfs(f"{cgroup_syspath}/io.cost.qos", qos.to_str())    
 
 def get_iocost():
-    model = None
+    model = []
     if os.path.exists(f"{cgroup_syspath}/io.cost.model"):  
         with open(f"{cgroup_syspath}/io.cost.model", "r") as f:
-            model =  IOCostModel.from_str(f.readline()) 
-    qos = None  
+            for line in f.readlines():
+                model.append(IOCostModel.from_str(line)) 
+    qos = []  
     with open(f"{cgroup_syspath}/io.cost.qos", "r") as f:
-        qos =  IOCostQOS.from_str(f.readline()) 
-    return (model, qos)
+        for line in f.readlines():
+            qos.append(IOCostQOS.from_str(line)) 
+
+    out = []
+    for q in qos:
+        found = False
+        for m in model:
+            if q and m and q.major_minor == m.major_minor:
+                out.append((m, q))
+                found = True
+        if not found:
+            out.append((None, q))
+    return out
 
 def disable_iocost():
-    model, qos = get_iocost()
-    if model is not None and qos is not None:
-        qos.enable = False
-        set_iocost(model, qos)
+    for model, qos in get_iocost(): 
+        if model is not None and qos is not None:
+            qos.enable = False
+            set_iocost(model, qos)
 
 def disable_iocontrol_with_groups(groups: list[Cgroup]):
     for group in groups:

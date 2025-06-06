@@ -9,6 +9,9 @@ import os.path
 import argparse
 
 from util_sysfs.bench import *
+from plot_utils import *
+
+nvme_drive = get_nvmedev()
 
 def parse_fio_bw_log(filename):
     x = []
@@ -40,23 +43,6 @@ def parse_fio_bw_log(filename):
 
 def kib_to_mib(y):
     return [yy / 1024 for yy in y]
-
-def set_font(size):
-    text_font_size = size
-    marker_font_size = size
-    label_font_size = size
-    axes_font_size = size
-
-    plt.rc('pdf', use14corefonts=True, fonttype=42)
-    plt.rc('ps', useafm=True)
-    plt.rc('font', size=text_font_size, weight="bold", family='serif', serif='cm10')
-    plt.rc('axes', labelsize=axes_font_size,labelweight="bold")    
-    plt.rc('xtick', labelsize=label_font_size)    
-    plt.rc('ytick', labelsize=label_font_size)    
-    plt.rc('legend', fontsize=label_font_size)  
-set_font(21)
-
-nvme_drive = get_nvmedev()
 
 def example_plot(file_out: str, preamble: str, labels: list[str]):
     if len(labels) != 3:
@@ -137,6 +123,7 @@ PLOT_OPTIONS = {
 }
 
 def main(knobs_to_plot):
+    set_standard_font()
     for knob in knobs_to_plot:
         knob()
 

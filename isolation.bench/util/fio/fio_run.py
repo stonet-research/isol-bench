@@ -52,3 +52,21 @@ class FioRunner:
                 fi.writelines(
                     [f"running command at {datetime.datetime.now()}" "\n", f"{cmd}"]
                 )
+
+    def run_job_deferred(
+        self, jobpath, outpath, fio_shell_opts=[], fio_extra_opts=[], mock: bool = False
+    ):
+        if not self.options.overwrite and os.path.exists(outpath):
+            print(f"Output file {outpath} already exists, enable overwrite to enable")
+            return
+        outdir = os.path.dirname(outpath)
+        os.makedirs(outdir, exist_ok=True)
+        cmd = self.__generate_cmd(jobpath, outpath, fio_shell_opts, fio_extra_opts)
+        if not mock:
+            return subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT)
+        else:
+            with open(outpath, "w") as fi:
+                fi.writelines(
+                    [f"running command at {datetime.datetime.now()}" "\n", f"{cmd}"]
+                )
+

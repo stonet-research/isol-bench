@@ -1,5 +1,6 @@
 import json
 from enum import Enum
+import os
 
 from .proc import *
 
@@ -45,7 +46,11 @@ class NVMeDevice(object):
 
     @property
     def eui(self) -> str:
-        with open(f"{self.NVME_SYSPATH}/{self.devicename}/eui", "r") as f:
+        filename = f"{self.NVME_SYSPATH}/{self.devicename}/eui"
+        if not os.path.exists(filename):
+            # Something with Optane
+            return "0000000000000000" 
+        with open(filename, "r") as f:
             return f.readline().strip().replace(" ", "")
 
     @property

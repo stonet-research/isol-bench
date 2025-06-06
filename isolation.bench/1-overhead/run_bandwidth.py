@@ -16,8 +16,8 @@ EXPERIMENT_CGROUP_PATH_PREAMBLE=f"example-workload"
 EXPERIMENT_MAX_TENANT_COUNT=256
 
 CORES = '1-10'
-NUMJOBS = [2**i for i in range(0,5)]
 NUMJOBS = [1, 3, 5, 7, 9, 11, 13, 15, 17]
+NUMDISKS = [1, 2, 4, 7]
 
 @dataclass
 class IOKnob:
@@ -128,15 +128,13 @@ def main(knobs_to_test: list[IOKnob], cgroups_active: bool):
         for group in exp_cgroups:
             group.force_cpuset_cpus(CORES)
 
-        try:
-            os.mkdir(f'./tmp/{knob.name}')
-            os.mkdir(f'./out/nvmescaling/{knob.name}')
-        except:
-            pass
+        os.makedirs(f'./tmp/{knob.name}', exist_ok = True)
+        os.makedirs(f'./out/nvmescaling/{knob.name}', exist_ok = True)
 
-        for device_count in [1, 7, 2, 4]: # list(range(1, len(nvme_devices)+1))[::-1]:
-            for numjobs in NUMJOBS:
-                print(f"Generating experiment [device_count={device_count} numjobs={numjobs}]")        
+        # We do in reverse so we can kill "early"
+        for device_count in NUMDISKS[::-1]:
+            for numjobs in NUMJOBS[::-1]:
+                print(f"Generating experiment [device_count={device_count}/[{NUMDISKS}] numjobs={numjobs}]")        
                 device_paths = [nvme_device.syspath for nvme_device in nvme_devices[0:device_count]]
                 job = setup_jobs(device_paths, exp_cgroups, numjobs, cgroups_active)
                 job_gen.generate_job_file(f'./tmp/{knob.name}/t-{device_count}-{numjobs}-{cgroups_active}', job)
@@ -166,6 +164,7 @@ if __name__ == "__main__":
         description="Example experiments for all io.knobs"
     )
     parser.add_argument(f"--cgroups", type=bool, required=False, default=False)
+    parser.add_argument(f"--numdisks", type=int, required=False, default=0)
     for key in IO_KNOBS.keys():
         parser.add_argument(f"--{key}", type=bool, required=False, default=False)
     args = parser.parse_args()
@@ -176,6 +175,8 @@ if __name__ == "__main__":
     for arg, val in vars(args).items():
         if arg == "cgroups":
             cgroups_active = val 
+        elif arg == "numdisks":
+            NUMDISKS = [int(val)] if val else NUMDISKS
         elif val:
             knobs_to_test.append(IO_KNOBS[arg])
 

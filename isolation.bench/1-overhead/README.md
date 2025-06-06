@@ -16,9 +16,16 @@ Make sure your SSD is filled and pre-conditioned. Then run:
 ```bash
 for knob in none bfq mq iomax iolat iocost; do 
     for active in "--active=1" ""; do 
-        python3 run_latency.py "--${knob}=1" ${active}; 
+        for cg in "--cgroups=1" ""; do 
+            python3 run_latency.py "--${knob}=1" ${active} ${cg}; 
+        done
     done; 
 done
+```
+
+Plot:
+```bash
+python3 plot.py --latency_cdf=1 --latency_cpu=1
 ```
 
 # Profile CPU for datapoint in latency overhead experiment
@@ -26,13 +33,17 @@ done
 This benchmark runs the previous experiment (latency overhead) with additional profiling
 
 ```bash
-for knob in none mq bfq iomax iopriomq iopriobfq iobfqweight iolatency iocost iocostw; do
-    for active in 1 0; do 
-        for numbjobs in 1 64 128 256; do
-            python3 profiling_wrapper.py "--${knob} --active=${active} --numjobs=${numjobs}" 
+for knob in none bfq mq iomax iolat iocost; do 
+    for active in "--active=1" ""; do 
+        for cg in "--cgroups=1" ""; do 
+            python3 run_latency.py "--${knob}=1" ${active} ${cg} --numjobs=256 --perf=1; 
         done
-    done
+    done; 
 done
+```
+Plot
+```bash
+python3 plot.py --perf=256
 ```
 
 # Bandwidth saturation
@@ -40,11 +51,10 @@ done
 This benchmark finds the saturation point in bandwidth
 
 ```bash
-ssds="nvme0n1,nvme1n1,nvme2n1,nvme3n1,nvme4n1,nvme5n1,nvme7n1"
 
-for knob in none mq bfq iomax iopriomq iopriobfq iobfqweight iolatency iocost iocostw; do
-    for active in 1 0; do 
-        python3 run_saturation.py "--${knob} --active=${active} --ssds=${ssds}" 
+for knob in none mq bfq iomax iolat iocost; do
+    for cg in "--cgroups=1" ""; do 
+        python3 run_bandwidth.py "--${knob} ${cg}" 
     done
 done
 ```

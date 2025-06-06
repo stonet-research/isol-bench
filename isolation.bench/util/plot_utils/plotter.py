@@ -20,5 +20,17 @@ def set_standard_font():
 def jains_fairness_index(l: list[float]):
     n = len(l)
     sum_l = sum(l)
-    sum_squares_l = sum([ll * ll for ll in l])
+    sum_squares_l = sum([ll * ll for ll in l])    
     f = (sum_l * sum_l) / (n * sum_squares_l)
+    return f
+
+# Color rules (based on https://personal.sron.nl/~pault/)
+GREEN = "#117733"
+TEAL  = "#44AA99"
+CYAN = "#88CCEE"
+OLIVE = "#999933"
+SAND = "#DDCC77"
+ROSE   = "#CC6677"
+BLUE = "#88CCEE"
+MAGENTA = "#AA4499"
+GREY = GRAY = "#DDDDDD"

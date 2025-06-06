@@ -54,10 +54,10 @@ def iolat_inactive_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: 
 def iocost_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 89698, 110036, 1063126016, 135560, 130734)
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1000000, 95.00, 1000000, 50.00, 150.00)
-    set_iocost(model, qos)
+    cgroups.set_iocost(model, qos)
 
 def iocost_inactive_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
-    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840*10, 89698*10, 110036*10, 1063126016*10, 135560*10, 130734*10)
+    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 1024*1024*1024*10, 10_000_000, 10_000_000, 1024*1024*1024*10, 10_000_000, 10_000_000)
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1000000, 95.00, 1000000, 50.00, 150.00)
     cgroups.set_iocost(model, qos)
 
@@ -208,8 +208,8 @@ if __name__ == "__main__":
         elif arg == "perf":
             perf_active = val
         elif arg == "numjobs":
-            NUMJOBS = [int(val)]
-        else:
+            NUMJOBS = [int(val)] if val else NUMJOBS
+        elif val:
             knobs_to_test.append(IO_KNOBS[arg])
 
     if not len(knobs_to_test):

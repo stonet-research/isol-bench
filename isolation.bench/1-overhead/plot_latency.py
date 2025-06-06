@@ -7,17 +7,17 @@ import json
 import datetime as dt
 import os.path
 import argparse
+import matplotlib.pyplot as plt
 
 from util_sysfs.bench import *
 from util_sysfs.perf import get_perf_cycles
 from plot_utils import *
-import matplotlib.pyplot as plt
 
 PLOT_ELEMENTS = {
     'none': 'no knob',
     'iomax': 'io.max',
-    'iocost': 'io.cost',
     'iolat': 'io.latency',
+    'iocost': 'io.cost',
     'mq': 'MQ-DL',
     'bfq': 'BFQ',
     # add your own here
@@ -65,6 +65,8 @@ def plot_cdf(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
         outname = f"./plots/{nvme_drive.eui}/cdf-{lat_stat}-{'active' if active else 'inactive'}-{'intercgroups' if cgroups_active else 'intracgroups'}-{jobs}.pdf"
 
         i = 0
+        colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA]
+        markers = ['o', 'v', '^', 'D', 's', "X"]
         for knob in knobs_to_plot:
             j = parse_fio_json(f'{resolve_path(knob, active, jobs, cgroups_active)}.json')
             percentile = j['jobs'][0]['read']['clat_ns']['percentile']
@@ -72,23 +74,23 @@ def plot_cdf(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
             x = [float(x) / 100. for x in percentile.keys()]
             v = [ y / 1000 for y in list(percentile.values())]
 
-            plt.plot(v, x, label=PLOT_ELEMENTS[knob], linewidth=4, linestyle='solid', marker='o')
+            plt.plot(v, x, label=PLOT_ELEMENTS[knob], linewidth=4, linestyle='solid', marker=markers[i], color=colors[i], markersize=8)
 
             if jobs >= 128:
-                ax.annotate(f'{PLOT_ELEMENTS[knob]}: {to_one_digit(v[-4])}', xy=(3200, 0.99), xytext=(3000, 0.55-0.1*i), arrowprops = dict(facecolor ='black',
+                ax.annotate(f'{PLOT_ELEMENTS[knob]}: {to_one_digit(v[-4] / 1000)}', xy=(6200, 0.99), xytext=(5000, 0.55-0.1*i), arrowprops = dict(facecolor ='black',
                                 shrink = 0.05) if i == 0 else None,)
             else:
-                ax.annotate(f'{PLOT_ELEMENTS[knob]}: {to_one_digit(v[-4])}', xy=(v[-4], 0.99), xytext=(200 + ( (i // 3) * 500), 0.75-0.1*i + (0.3 * (i // 3))), arrowprops = dict(facecolor ='black',
+                ax.annotate(f'{PLOT_ELEMENTS[knob]}: {to_one_digit(v[-4])}', xy=(v[-4], 0.99), xytext=(190 + ( (i // 3) * 550), 0.80-0.1*i + (0.3 * (i // 3))), arrowprops = dict(facecolor ='black',
                                 shrink = 0.05) if i == 0 else None,)
             i = i + 1
 
         if jobs >= 128:
-            plt.xticks(range(0, 6000, 1000), ['0'] + [f'{xx},000' for xx in range(1,6)])
-            plt.xticks(range(0, 7000, 1000), ['0'] + [f'{xx}' for xx in range(1,7)])
+            plt.xticks(range(0, 10000, 1000), ['0'] + [f'{xx},000' for xx in range(1,10)])
+            plt.xticks(range(0, 11000, 1000), ['0'] + [f'{xx}' for xx in range(1,11)])
             plt.xlabel("Latency (ms)")
-            plt.xlim(0, 6000)
+            plt.xlim(0, 10000)
         else:  
-            plt.xticks(range(0, 1500, 300), list(range(0, 1200, 300)) + ['1,200'] )
+            plt.xticks(range(0, 1500, 300), list(range(0, 1500, 300)))
             plt.xlabel("Latency (us)")
             plt.xlim(0, 1200)
         if jobs == 1:
@@ -111,7 +113,7 @@ def plot_cpu(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
     x = [xx + 1 for xx in range(len(NUMJOBS))]
     lines = []
 
-    # Collect data
+    # Collect data 
     for knob in knobs_to_plot:
         y = []
         for jj in NUMJOBS:
@@ -128,9 +130,13 @@ def plot_cpu(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
         lines.append((knob, y))
 
     # Plot data
+    colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA]
+    markers = ['o', 'v', '^', 'D', 's', "X"]
+    i = 0
     fig, ax = plt.subplots()
     for (name, y) in lines:    
-        plt.plot(x, y, label=PLOT_ELEMENTS[name], linewidth=4, linestyle='solid', marker='o')
+        plt.plot(x, y, label=PLOT_ELEMENTS[name], linewidth=4, linestyle='solid', marker=markers[i], color=colors[i], markersize=8)
+        i = i + 1
     plt.xticks(range(len(NUMJOBS) + 1), [0] + NUMJOBS)
     plt.xlim(0, len(NUMJOBS) + 1)    
     plt.yticks([0, 0.25, 0.5, 0.75, 1.00], [0, 25, 50, 75, 100])
@@ -160,18 +166,19 @@ def plot_cpu_metrics(nvme_drive, knobs_to_plot):
             iops_per_ctx = ctx  / total 
             ipc.append(iops_per_cycle)
             ctxs.append(iops_per_ctx)
+            print(knob, j['jobs'][0]['read']['clat_ns']['percentile']['99.000000'] // 1_000_00)
+
         print('knob:', knob, 'Cycles per IOP:', f'{to_one_digit(avg(ipc) / 1000)}K', 'ctx per IOP', to_one_digit(avg(ctxs)))
         print('knob:', knob, 'Cycles per IOP:', f'{(avg(ipc) / 1000)}K', 'ctx per IOP', avg(ctxs))
-    exit(1)
 
 def main(knobs_to_plot, nvme_drive):
     set_standard_font()
-    plot_cpu_metrics(nvme_drive, knobs_to_plot)
     for active in [True, False]:
         for cgroups_active in [True, False]:
             for lat_stat in ["fio", "sar", "pidstat"]:
                 plot_cpu(nvme_drive, knobs_to_plot, active, cgroups_active, lat_stat)
                 plot_cdf(nvme_drive, knobs_to_plot, active, cgroups_active, lat_stat)
+    plot_cpu_metrics(nvme_drive, knobs_to_plot)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

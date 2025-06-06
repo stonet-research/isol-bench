@@ -17,6 +17,7 @@ EXPERIMENT_MAX_TENANT_COUNT=256
 
 CORES = '1-10'
 NUMJOBS = [2**i for i in range(0,5)]
+NUMJOBS = [1, 3, 5, 7, 9, 11, 13, 15, 17]
 
 @dataclass
 class IOKnob:
@@ -42,10 +43,13 @@ def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgro
     major_minor = nvme_device.major_minor
     for group in exp_cgroups:
         group.iolatency = cgroups.IOLatency(major_minor, 1000000)
+        group.iolatency = cgroups.IOLatency(major_minor, 10)
 
 def iocost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
-    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840*10, 89698*10, 110036*10, 1063126016*10, 135560*10, 130734*10)
-    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1000000, 95.00, 1000000, 50.00, 150.00)
+    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 1024*1024*1024*10, 10_000_000, 10_000_000, 1024*1024*1024*10, 10_000_000, 10_000_000)
+    # model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840//100, 89698//100, 110036//100, 1063126016//100, 135560//100, 130734//100)
+    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1_000_000, 95.00, 1_000_000, 50.00, 150.00)
+    #qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 100, 95.00, 100, 50.00, 150.00)
     cgroups.set_iocost(model, qos)
 
 def setup_cgroups() -> list[cgroups.Cgroup]:
@@ -179,4 +183,3 @@ if __name__ == "__main__":
         knobs_to_test = list(IO_KNOBS.values())
 
     main(knobs_to_test, cgroups_active)
-

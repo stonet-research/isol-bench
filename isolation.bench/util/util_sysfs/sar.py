@@ -15,15 +15,25 @@ def kill_sar():
     return subprocess.Popen(cmd, shell=True, stderr=subprocess.STDOUT)
 
 def parse_sar(filename: str, core: str):
-    tmp = []
+    tmp = [[] for i in range(256)]
     with open(filename) as file:
-        tmp = []
         for line in file:
             l = line.split()
             try:
-                if l[2] == core:
+                if "PM" in l[1] or "AM" in l[1]:
                     v = float(l[3]) + float(l[5])
-                    tmp.append(v)
+                    tmp[int(l[2])].append(v)
             except:
                 continue
-    return tmp
+
+    cores = core.split('0')
+    x1 = int(core.split('-')[0])
+    x2 = int(core.split('-')[1])+1 if len(cores) > 1 else x1+1
+    
+    y = []
+    for i in range(0, len(tmp[x1])):
+        o = 0
+        for j in range(x1, x2):
+            o = o + tmp[j][i]
+        y.append(o)        
+    return y

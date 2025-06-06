@@ -69,6 +69,7 @@ def example_plot(file_out: str, preamble: str, labels: list[str]):
     plt.xlabel("Time (s)")
     plt.ylabel("Throughput (MiB/s)")
     plt.legend(loc=(0.01, 0.62))
+    os.makedirs(f'./plots', exist_ok = True)
     fig.savefig(f'./plots/{file_out}.pdf', bbox_inches="tight")
 
 def plot_iomax_example():
@@ -111,7 +112,7 @@ PLOT_OPTIONS = {
     'none': plot_empty,
     'mq': plot_mq,
     'bfq': plot_bfq,
-    'iomax': plot_iocost_example,
+    'iomax': plot_iomax_example,
     'iopriomq': plot_ioprio_mq_example,
     'iopriobfq': plot_ioprio_bfq_example,
     'iopriokyber': plot_ioprio_kyber_example,

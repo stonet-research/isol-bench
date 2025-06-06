@@ -16,38 +16,47 @@ EXPERIMENT_CGROUP_PATH_PREAMBLE=f"example-workload"
 EXPERIMENT_MAX_TENANT_COUNT=256
 
 CORES = '1-10'
-NUMJOBS = [1, 3, 5, 7, 9, 11, 13, 15, 17]
+NUMJOBS = [4, 8, 16, 32, 64, 128]
 
 @dataclass
 class IOKnob:
     name: str
     configure_cgroups: Callable[[nvme.NVMeDevice, list[cgroups.Cgroup]], None]
-    configure_cgroups_weight: Callable[[nvme.NVMeDevice, list[cgroups.Cgroup]], None]
 
-def none_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+@dataclass
+class Experiment:
+    name: str
+    saturated: bool
+    weighted: bool
+    change_jobs: bool
+
+def none_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
     pass
 
-def iomax_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
-    major_minor = nvme_device.major_minor
-    for group in exp_cgroups:
-        group.iomax = cgroups.IOMax(major_minor, 1024 * 1024 * 5000, 1024 * 1024 * 5000, 10_000_000, 10_000_000)
-        #group.iomax = cgroups.IOMax(major_minor, 1024 * 1024 * 100, 1024 * 1024 * 100, 10_000, 10_000)
+def iomax_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
+    total_weight = sum(weights) 
 
-def bfq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    major_minor = nvme_device.major_minor
+    for index, group in enumerate(exp_cgroups):
+        if index >= len(weights):
+            break
+        weight = weights[index] / total_weight
+        group.iomax = cgroups.IOMax(major_minor, int(weight * max_bw), int(weight * max_bw), 10_000_000, 10_000_000)
+
+def bfq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
     nvme_device.io_scheduler = nvme.IOScheduler.BFQ
 
-def mq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+def mq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
     nvme_device.io_scheduler = nvme.IOScheduler.MQ_DEADLINE
 
-def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
     major_minor = nvme_device.major_minor
     for group in exp_cgroups:
-        group.iolatency = cgroups.IOLatency(major_minor, 1000000)
         group.iolatency = cgroups.IOLatency(major_minor, 10)
 
-def iocost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
-    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 1024*1024*1024*10, 10_000_000, 10_000_000, 1024*1024*1024*10, 10_000_000, 10_000_000)
-    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1_000_000, 95.00, 1_000_000, 50.00, 150.00)
+def iocost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], specified_bw, weights):
+    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 89698, 110036, 1063126016, 135560, 130734)
+    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 100, 95.00, 1000, 50.00, 150.00)
     cgroups.set_iocost(model, qos)
 
 def setup_cgroups() -> list[cgroups.Cgroup]:
@@ -113,8 +122,8 @@ def find_saturation_point(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroup
         job_gen.generate_job_file(f'./tmp/{file_preamble}', gjob)
         
         # Run
-#        fioproc = job_runner.run_job_deferred(f'./tmp/{file_preamble}', f'./out/{nvme_device.eui}/{file_preamble}.json')
-#        fioproc.wait()
+        fioproc = job_runner.run_job_deferred(f'./tmp/{file_preamble}', f'./out/{nvme_device.eui}/{file_preamble}.json')
+        fioproc.wait()
 
         # Disable
         cgroups.disable_iocontrol_with_groups(exp_cgroups)
@@ -142,53 +151,181 @@ def find_saturation_points(mink: IOKnob, maxk: IOKnob):
     for knob, out in [(mink, 'min'), (maxk, 'max')]:
         find_saturation_point(nvme_device, exp_cgroups, knob, f'./out/{nvme_device.eui}/saturation-{out}')
 
-IO_KNOBS = {
-    "none": IOKnob("none", none_configure_cgroups,none_configure_cgroups ),
-    "bfq": IOKnob("bfq", bfq_configure_cgroups, bfq_configure_cgroups),
-    "mq": IOKnob("mq", mq_configure_cgroups, mq_configure_cgroups),
-    "iomax": IOKnob("iomax", iomax_configure_cgroups, iomax_configure_cgroups),
-    "iolat": IOKnob("iolat", iolat_configure_cgroups, iolat_configure_cgroups),
-    "iocost": IOKnob("iocost", iocost_configure_cgroups, iocost_configure_cgroups),
-}
+def parse_saturation_points(nvme_device: nvme.NVMeDevice):
+    preamble = f'./out/{nvme_device.eui}/saturation' 
 
-def main(knobs_to_test: list[IOKnob], cgroups_active: bool):
-    nvme_device = get_nvmedev()
-    outdir = f'./out/{nvme_devices.eui}'
-    os.makedirs(outdir, exist_ok = True)
-    os.makedirs(f'./tmp', exist_ok = True)
+    saturation = {}
+    for filename in ["min", "max"]:
+        with open(f"{preamble}-{filename}", "r") as f:
+            o = f.readline().strip().split('@')
+            bw = float(o[0])
+            jobs = int(o[1])
+            saturation[filename] = bw
+    return saturation
 
-    exp_cgroups = setup_cgroups()
+
+def unsaturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we go below saturation by dividing max by jobcount and creating a "ghost job"
+    bw = f"{ (saturation_point['min'] * 1024) // (numjobs+1)}"
+    roption = fio.RateOption(bw, bw, bw)
+    sjob.add_options([
+        roption
+    ])
+    return sjob
+
+def saturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    roption = fio.RateOption(single_job_bw, single_job_bw, single_job_bw)
+    sjob.add_options([
+        roption
+    ])
+    return sjob
+
+def unfairapp_saturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # We give some apps more than others
+    div = (i % 4) + 1
+    #
+    bw = f"{int(single_job_bw // div)}"
+    roption = fio.RateOption(bw, bw, bw)
+    sjob.add_options([
+        roption
+    ])
+    return sjob
+
+def requestsize_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    roption = fio.RateOption(single_job_bw, single_job_bw, single_job_bw)
+    soption = fio.RequestSizeOption(["4096", "65536"][i % 2])
+    sjob.add_options([
+        roption,
+        soption
+    ])
+    return sjob
+
+def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     job_gen = fio.FioJobGenerator(True)
     job_runner = fio.FioRunner('sudo ../dependencies/fio/fio', fio.FioRunnerOptions(overwrite=True, parse_only=False))
 
+    # Setup job
+    gjob = setup_gjob(nvme_device.syspath)
+    gjob.add_options([
+        fio.GroupReportingOption(True),
+    ])
+    gjob.add_job(setup_sjobs(exp_cgroups, 1)[0])
+    job_gen.generate_job_file(f'./tmp/{name}', gjob)
+        
+    # Run
+    fioproc = job_runner.run_job_deferred(f'./tmp/{name}', filename)
+    fioproc.wait()   
+
+    # Setup job large rq
+    gjob = setup_gjob(nvme_device.syspath)
+    gjob.add_options([
+        fio.GroupReportingOption(True),
+        fio.RequestSizeOption("65536")
+    ])
+    gjob.add_job(setup_sjobs(exp_cgroups, 1)[0])
+    job_gen.generate_job_file(f'./tmp/{name}-rq', gjob)
+        
+    # Run
+    fioproc = job_runner.run_job_deferred(f'./tmp/{name}-rq', f"{filename}-rq")
+    fioproc.wait()   
+
+def get_singleknob_bw(knob : IOKnob, nvme_device, exp_cgroups):
+    filename = f'./out/{nvme_device.eui}/{knob.name}.json' 
+
+    if not os.path.exists(filename):
+        print("Determining T-app performance")
+        generate_singleknob_bw(knob.name, filename, nvme_device, exp_cgroups)
+
+    with open(filename, "r") as f:
+        j = json.load(f)
+        return int(j['jobs'][0]['read']['bw_mean']) * 1024
+
+IO_KNOBS = {
+    "none": IOKnob("none", none_configure_cgroups),
+    "bfq": IOKnob("bfq", bfq_configure_cgroups),
+    "mq": IOKnob("mq", mq_configure_cgroups),
+    "iomax": IOKnob("iomax", iomax_configure_cgroups),
+    "iolat": IOKnob("iolat", iolat_configure_cgroups),
+    "iocost": IOKnob("iocost", iocost_configure_cgroups),
+}
+
+EXPERIMENTS = {
+    "unsaturated": Experiment("unsaturated", False, False, unsaturated_job),
+    "saturated": Experiment("saturated", True, False, saturated_job),
+    "unfairapp": Experiment("unfairapp", True, False, unfairapp_saturated_job),
+    "requestsize": Experiment("requestsize", True, False, requestsize_job),
+}
+
+
+def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_device: nvme.NVMeDevice, exp_cgroups, saturation_point):
+    job_gen = fio.FioJobGenerator(True)
+    job_runner = fio.FioRunner('sudo ../dependencies/fio/fio', fio.FioRunnerOptions(overwrite=True, parse_only=False))
+    outdir = f'./out/{nvme_device.eui}'
+
+
     for knob in knobs_to_test: 
+
         print(f"___________________________________")
         print(f"Experiment [{knob.name}]") 
         print(f"___________________________________")
 
-        print(f"Configuring experiment")        
+        print(f"Configuring experiment [{experiment.name}]")        
         cgroups.disable_iocontrol_with_groups(exp_cgroups)
         del nvme_device.io_scheduler
-        knob.configure_cgroups(nvme_device, exp_cgroups)
+        
+        knob.configure_cgroups(nvme_device, exp_cgroups, (1024 * 1024 * 1024 * 10), [1])
 
         for group in exp_cgroups:
             group.force_cpuset_cpus(CORES)
 
+        single_job_bw = get_singleknob_bw(knob, nvme_device, exp_cgroups)
+        print(f"T-app in isolation gets {single_job_bw / (1024 * 1024)} MiB/s with {knob.name} [sat is {saturation_point['max'] / 1024}]")
+
         # We do in reverse so we can kill "early"
-        for device_count in NUMDISKS[::-1]:
-            for numjobs in NUMJOBS[::-1]:
-                print(f"Generating experiment [device_count={device_count}/[{NUMDISKS}] numjobs={numjobs}]")        
-                device_paths = [nvme_device.syspath for nvme_device in nvme_devices[0:device_count]]
-                job = setup_jobs(device_paths, exp_cgroups, numjobs, cgroups_active)
-                job_gen.generate_job_file(f'./tmp/{knob.name}/t-{device_count}-{numjobs}-{cgroups_active}', job)
+        for numjobs in NUMJOBS[::1]:
+            print(f"Generating experiment [numjobs={numjobs}]")        
 
-                print(f"Running experiment [device_count={device_count} numjobs={numjobs}]")                    
+            weights = []
+            if experiment.weighted:
+                weights = list(range(1, numjobs+1)) 
+            else:
+                weights = [1 for _ in range(numjobs)]
+            knob.configure_cgroups(nvme_device, exp_cgroups, saturation_point['max'] * 1024, weights)
 
-                fioproc = job_runner.run_job_deferred(f'./tmp/{knob.name}/t-{device_count}-{numjobs}-{cgroups_active}', f'./{outdir}/{knob.name}/t-{device_count}-{numjobs}-{cgroups_active}.json')
-                fioproc.wait()
+            gjob = setup_gjob(nvme_device.syspath)
+            gjob.add_options([
+                fio.GroupReportingOption(False),
+            ])
+            for i, tapp in enumerate(setup_sjobs(exp_cgroups, numjobs)):
+                tapp = experiment.change_jobs(tapp, saturation_point, numjobs, i, single_job_bw)              
+                gjob.add_job(tapp)      
+            job_gen.generate_job_file(f'./tmp/{experiment.name}-{knob.name}-{numjobs}', gjob)
 
-        for group in exp_cgroups:
-            group.force_cpuset_cpus('')
+            print(f"Running experiment [experiment={experiment.name} numjobs={numjobs}]")                    
+
+            fioproc = job_runner.run_job_deferred(\
+                f'./tmp/{experiment.name}-{knob.name}-{numjobs}',\
+                f'./{outdir}/{experiment.name}-{knob.name}-{numjobs}.json')
+            fioproc.wait()
+
+def run_experiments(experiments_to_run: list[Experiment], knobs_to_test: list[IOKnob]):
+    nvme_device = get_nvmedev()
+    outdir = f'./out/{nvme_device.eui}'
+    os.makedirs(outdir, exist_ok = True)
+    os.makedirs(f'./tmp', exist_ok = True)
+
+    exp_cgroups = setup_cgroups()
+    saturation_point = parse_saturation_points(nvme_device)
+
+    # Run
+    for experiment in experiments_to_run:
+        run_experiment(experiment, knobs_to_test, nvme_device, exp_cgroups, saturation_point)
+   
+    # Reset
+    for group in exp_cgroups:
+        group.force_cpuset_cpus('')
     cgroups.disable_iocontrol_with_groups(exp_cgroups)
 
 if __name__ == "__main__":
@@ -206,10 +343,13 @@ if __name__ == "__main__":
     # cgroups
     for key in IO_KNOBS.keys():
         parser.add_argument(f"--{key}", type=bool, required=False, default=False)
+    for key in EXPERIMENTS.keys():
+        parser.add_argument(f"--{key}", type=bool, required=False, default=False)
     args = parser.parse_args()
 
     # Determine knobs to test
     knobs_to_test = []
+    experiments_to_run = []
     find_saturation = False
     min_saturation = max_saturation = None
     for arg, val in vars(args).items():
@@ -219,9 +359,11 @@ if __name__ == "__main__":
             min_saturation = IO_KNOBS[val] if val in IO_KNOBS else None
         elif arg == "max_saturation":
             max_saturation = IO_KNOBS[val] if val in IO_KNOBS else None
-        elif val:
+        elif arg in IO_KNOBS and val:
             knobs_to_test.append(IO_KNOBS[arg])
-
+        elif arg in EXPERIMENTS and val:
+            experiments_to_run.append(EXPERIMENTS[arg])
+    
     # Find saturation
     if find_saturation:
         if min_saturation == None or max_saturation == None:
@@ -229,6 +371,8 @@ if __name__ == "__main__":
         find_saturation_points(min_saturation, max_saturation)
     # Normal experiment
     else:
+        if not len(experiments_to_run):
+            experiments_to_run = list(EXPERIMENTS.values())
         if not len(knobs_to_test):
             knobs_to_test = list(IO_KNOBS.values())
-        main(knobs_to_test, cgroups_active)
+        run_experiments(experiments_to_run, knobs_to_test)

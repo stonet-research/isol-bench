@@ -58,7 +58,7 @@ def to_one_digit(v):
 def plot_cpu(knobs_to_plot, numdisks, cgroups_active = True, lat_stat = "sar"): 
     """ Create a CPU utilization plot """
     
-    outname = f"./plots/nvme_scaling/cpu-{lat_stat}-{numdisks}-{'intercgroups' if cgroups_active else 'intracgroups'}.pdf"
+    outname = f"./plots/nvme_scaling/bw-cpu-{lat_stat}-{numdisks}-{'intercgroups' if cgroups_active else 'intracgroups'}.pdf"
     x = [xx + 1 for xx in range(len(NUMJOBS))]
     lines = []
 
@@ -68,11 +68,11 @@ def plot_cpu(knobs_to_plot, numdisks, cgroups_active = True, lat_stat = "sar"):
         for jj in NUMJOBS:
             file_preamble = f'./out/nvmescaling/{knob}/t-{numdisks}-{jj}-{cgroups_active}' 
             if lat_stat == "sar":
-                v = parse_sar_cpu_avg(f'{file_preamble}.sar') / 10
+                v = parse_sar_cpu_avg(f'{file_preamble}.sar')
             elif lat_stat == "pidstat":
-                v = parse_pidstat_cpu_avg(f'{file_preamble}.pidstat') / 10
+                v = parse_pidstat_cpu_avg(f'{file_preamble}.pidstat')
             elif lat_stat == "fio":
-                v = parse_fio_cpu_avg(f'{file_preamble}.json', jj) / 10
+                v = parse_fio_cpu_avg(f'{file_preamble}.json', jj) 
             else:
                 raise ValueError("lat_stat not implemented")
             y.append(v)
@@ -86,14 +86,16 @@ def plot_cpu(knobs_to_plot, numdisks, cgroups_active = True, lat_stat = "sar"):
     for (name, y) in lines:    
         plt.plot(x, y, label=PLOT_ELEMENTS[name], linewidth=4, linestyle='solid', marker=markers[i], color=colors[i], markersize=8)
         i = i + 1
+
+    plt.hlines(y=10, xmin=0, xmax=10000, linewidth=2, color='r')
     plt.xticks(range(len(NUMJOBS) + 1), [0] + NUMJOBS)
     plt.xlim(0, len(NUMJOBS) + 1)    
-    plt.yticks([0, 0.25, 0.5, 0.75, 1.00], [0, 25, 50, 75, 100])
-    plt.ylim(0, 1.1)
-    plt.xlabel("#processes")
-    plt.ylabel("CPU utilization (%)")
+    plt.ylim(0, 20)
+    plt.xlabel("#batch-apps")
+    plt.ylabel("CPU cores utilized (#)")
     plt.grid()
-    plt.legend(ncol=1, loc='lower right')
+    if numdisks == 1:
+        plt.legend(ncol=2, loc='upper left')
 
     # Save plot       
     os.makedirs(f'./plots', exist_ok = True)
@@ -132,7 +134,7 @@ def plot_bw(knobs_to_plot, numdisks, cgroups_active = True, lat_stat = "sar"):
     plt.xlim(0, len(NUMJOBS) + 1)    
     #plt.yticks([0, 0.25, 0.5, 0.75, 1.00], [0, 25, 50, 75, 100])
     plt.ylim(0, 10 if numdisks > 1 else 10)
-    plt.xlabel("#processes")
+    plt.xlabel("#batch-apps")
     plt.ylabel("Bandwidth (GiB/s)")
     plt.grid()
     if numdisks == 1:

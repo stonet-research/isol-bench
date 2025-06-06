@@ -141,10 +141,11 @@ def plot_cpu(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
     plt.xlim(0, len(NUMJOBS) + 1)    
     plt.yticks([0, 0.25, 0.5, 0.75, 1.00], [0, 25, 50, 75, 100])
     plt.ylim(0, 1.1)
-    plt.xlabel("#processes")
+    plt.xlabel("#LC-apps")
     plt.ylabel("CPU utilization (%)")
     plt.grid()
-    plt.legend(ncol=1, loc='lower right')
+    if not cgroups_active:
+        plt.legend(ncol=1, loc='lower right')
 
     # Save plot       
     os.makedirs(f'./plots', exist_ok = True)

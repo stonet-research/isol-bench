@@ -267,7 +267,7 @@ class Cgroup(object):
         if self.isroot or not self.parent.iocontrol_enabled:
             raise ValueError("iocontrol not available for this group")
         if type(ioweight_val.weight) != str and (int(ioweight_val.weight) < 1 or int(ioweight_val.weight) > 10_000):
-            raise ValueError("Invalid weight")
+            raise ValueError(f"Invalid weight {ioweight_val.to_str()}")
         set_sysfs(f"{self.cgroup_path}/io.weight", ioweight_val.to_str())    
 
     @ioweight.deleter
@@ -292,7 +292,7 @@ class Cgroup(object):
         if self.isroot or not self.parent.iocontrol_enabled:
             raise ValueError("iocontrol not available for this group")
         if type(iobfqweight_val.weight) != str and (int(iobfqweight_val.weight) < 1 or int(iobfqweight_val.weight) > 1_000):
-            raise ValueError("Invalid weight")
+            raise ValueError(f"Invalid weight {iobfqweight_val.to_str()}")
         set_sysfs(f"{self.cgroup_path}/io.bfq.weight", iobfqweight_val.to_str())    
 
     @iobfqweight.deleter

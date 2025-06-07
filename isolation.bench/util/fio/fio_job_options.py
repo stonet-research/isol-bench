@@ -16,6 +16,7 @@ class JobWorkload(Enum):
 class IOEngine(Enum):
     IO_URING = 1
     SPDK = 2
+    LIBAIO = 3
 
 
 class Scheduler(Enum):
@@ -27,6 +28,7 @@ def io_engine_to_string(engine: IOEngine) -> str:
     return {
         IOEngine.IO_URING: "io_uring",
         IOEngine.SPDK: "spdk",
+        IOEngine.LIBAIO: "libaio",
     }.get(engine, "deadbeef")
 
 
@@ -34,6 +36,7 @@ def string_to_io_engine(engine: str) -> IOEngine:
     return {
         "io_uring": IOEngine.IO_URING,
         "spdk": IOEngine.SPDK,
+        "libaio": IOEngine.LIBAIO,
     }.get(engine, IOEngine.IO_URING)
 
 
@@ -104,6 +107,12 @@ class TargetOption(FioOption):
     def to_opt(self) -> [(str, str)]:
         return [("filename", self.fi)]
 
+@dataclass
+class BsSplitOption(FioOption):
+    split: str
+
+    def to_opt(self) -> [(str, str)]:
+        return [("bssplit", self.split)]
 
 @dataclass
 class QDOption(FioOption):

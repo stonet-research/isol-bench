@@ -16,7 +16,23 @@ EXPERIMENT_CGROUP_PATH_PREAMBLE=f"example-workload"
 EXPERIMENT_MAX_TENANT_COUNT=256
 
 CORES = '1-10'
-NUMJOBS = [4, 8, 16, 32, 64, 128]
+NUMJOBS = [2, 4, 8, 16, 32, 64, 128, 256]
+
+def proportional_slowdown(l: list[float], isol: list[float]):
+    return [ll / lisol for ll, lisol in zip(l, isol)]
+
+def jains_fairness_index(l: list[float], w: list[int]):
+    if len(l) != len(w):
+        raise ValueError("Incorrect args")
+    n = len(l)
+    lw = [ll / ww for ll, ww in zip(l,w)]
+    f = (sum(lw) ** 2) / (n * sum([llw**2 for llw in lw]))
+    return f
+
+def proportional_slowdown_jains(l: list[float], w: list[int], isol: list[float]):
+    pc = proportional_slowdown(l, isol)
+    print(pc, isol, l, w)
+    return jains_fairness_index(pc, w)
 
 @dataclass
 class IOKnob:
@@ -46,18 +62,59 @@ def iomax_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgro
 def bfq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
     nvme_device.io_scheduler = nvme.IOScheduler.BFQ
 
+    # We want to use the default weight 100 if weights are uniform
+    if sum(weights) == len(weights):
+        for i, w in enumerate(weights): 
+            exp_cgroups[i].ioweight = cgroups.IOBFQWeight("default", 100)
+        return
+
+    # Ensure weights scale up but we are using the full range (e.g., not below 100 if possible)
+    for i, w in enumerate(weights): 
+        exp_cgroups[i].iobfqweight = cgroups.IOBFQWeight("default", w) 
+
 def mq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
     nvme_device.io_scheduler = nvme.IOScheduler.MQ_DEADLINE
 
+    # Uniform
+    if (sum(weights) == len(weights)):
+        return 
+
+    # I have no idea if this is a good idea, but lets do it
+    w_threshold = sum(weights) / 3
+    for i, w in enumerate(weights): 
+        c = None
+        if w < w_threshold:
+            c = cgroups.IOPriorityClass.IDLE
+        elif w < 2 * w_threshold:
+            c = cgroups.IOPriorityClass.RESTRICT_TO_BE
+        else:   
+            c = cgroups.IOPriorityClass.PROMOTE_TO_RT
+        exp_cgroups[i].ioprio = c
+
 def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
     major_minor = nvme_device.major_minor
-    for group in exp_cgroups:
-        group.iolatency = cgroups.IOLatency(major_minor, 10)
+
+    for index, group in enumerate(exp_cgroups):
+        if index >= len(weights):
+            break 
+        tlat = 10 + weights[index]
+        group.iolatency = cgroups.IOLatency(major_minor, tlat)
 
 def iocost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], specified_bw, weights):
-    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 89698, 110036, 1063126016, 135560, 130734)
-    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 100, 95.00, 1000, 50.00, 150.00)
+    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 786432, 786432, 1063126016, 135560, 130734)
+    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1_000_000, 95.00, 1_000_000, 50.00, 150.00)
     cgroups.set_iocost(model, qos)
+
+    # We want to use the default weight 100 if weights are uniform
+    if sum(weights) == len(weights):
+        for i, w in enumerate(weights): 
+            exp_cgroups[i].ioweight = cgroups.IOWeight("default", 100)
+        return
+
+    # Ensure weights scale up but we are using the full range (e.g., not below 100 if possible)
+    weight_jumper = 10_000 / (sum(weights))
+    for i, w in enumerate(weights): 
+        exp_cgroups[i].ioweight = cgroups.IOWeight("default", w) # round(w * weight_jumper))
 
 def setup_cgroups() -> list[cgroups.Cgroup]:
     return [cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_PATH_PREAMBLE}-{i}.slice") for i in range(0,EXPERIMENT_MAX_TENANT_COUNT)]
@@ -70,14 +127,14 @@ def setup_gjob(device_name: str) -> fio.FioGlobalJob:
         fio.DirectOption(True),
         fio.ThreadOption(False), # < we need to set this because ioprio is not transferred on fork (shocking I know)
         fio.SizeOption("100%"),
-        fio.IOEngineOption(fio.IOEngine.IO_URING),
-        fio.Io_uringFixedBufsOption(True),
-        fio.Io_uringRegisterFilesOption(True),
+        fio.IOEngineOption(fio.IOEngine.LIBAIO), # <- when throttling iouring can die.
         fio.QDOption(256),
         fio.RequestSizeOption(f"{4 * 1024}"),
         fio.ConcurrentWorkerOption(1),
         fio.TimedOption('20s', '60s'),
         fio.AllowedCPUsOption(CORES),
+#        fio.Io_uringFixedBufsOption(True),
+ #       fio.Io_uringRegisterFilesOption(False), 
     ])
     return gjob
 
@@ -108,7 +165,7 @@ def find_saturation_point(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroup
         # Configure
         cgroups.disable_iocontrol_with_groups(exp_cgroups)
         del nvme_device.io_scheduler
-        knob.configure_cgroups(nvme_device, exp_cgroups)
+        knob.configure_cgroups(nvme_device, exp_cgroups, (1024 * 1024 * 1024) * 10, [1])
         for group in exp_cgroups:
             group.force_cpuset_cpus(CORES)
 
@@ -158,6 +215,7 @@ def parse_saturation_points(nvme_device: nvme.NVMeDevice):
     for filename in ["min", "max"]:
         with open(f"{preamble}-{filename}", "r") as f:
             o = f.readline().strip().split('@')
+            print(preamble, o)
             bw = float(o[0])
             jobs = int(o[1])
             saturation[filename] = bw
@@ -166,41 +224,84 @@ def parse_saturation_points(nvme_device: nvme.NVMeDevice):
 
 def unsaturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
     # Limit, we go below saturation by dividing max by jobcount and creating a "ghost job"
-    bw = f"{ (saturation_point['min'] * 1024) // (numjobs+1)}"
-    roption = fio.RateOption(bw, bw, bw)
+    bw_rate = f"{ (saturation_point['min'] * 1024) // (numjobs+1)}"
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
     sjob.add_options([
         roption
     ])
-    return sjob
+    return (sjob, bw_rate)
 
 def saturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
     # Limit, we give each tenant as much as it can support
-    roption = fio.RateOption(single_job_bw, single_job_bw, single_job_bw)
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
     sjob.add_options([
         roption
     ])
-    return sjob
+    return (sjob, bw_rate)
 
 def unfairapp_saturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
     # We give some apps more than others
     div = (i % 4) + 1
-    #
-    bw = f"{int(single_job_bw // div)}"
-    roption = fio.RateOption(bw, bw, bw)
+    bw_rate = f"{int(single_job_bw // div)}"
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
     sjob.add_options([
         roption
     ])
-    return sjob
+    return (sjob, bw_rate)
 
 def requestsize_job(sjob, saturation_point, numjobs, i, single_job_bw):
     # Limit, we give each tenant as much as it can support
-    roption = fio.RateOption(single_job_bw, single_job_bw, single_job_bw)
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
     soption = fio.RequestSizeOption(["4096", "65536"][i % 2])
     sjob.add_options([
         roption,
         soption
     ])
-    return sjob
+    return (sjob, bw_rate)
+
+def requestsize_large_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    soption = fio.RequestSizeOption(["4096", f"{1024 * 256}"][i % 2])
+    sjob.add_options([
+        roption,
+        soption
+    ])
+    return (sjob, bw_rate)
+
+def requestsize_split_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    jstr = ""
+    for j in range(2, 12):
+        if len(jstr) > 1:
+            jstr = jstr + ":"
+        jstr = jstr + f"{2**j}k/10"
+    soption = fio.BsSplitOption(jstr)
+    sjob.add_options([
+        roption,
+        soption
+    ])
+    return (sjob, bw_rate)
+
+def requestsize_range_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    sizes = []
+    for j in range(2, 12):
+        sizes.append(f"{2**j}k")
+    soption = fio.RequestSizeOption(sizes[i % (len(sizes))])
+    sjob.add_options([
+        roption,
+        soption
+    ])
+    return (sjob, bw_rate)
+
 
 def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     job_gen = fio.FioJobGenerator(True)
@@ -238,7 +339,7 @@ def get_singleknob_bw(knob : IOKnob, nvme_device, exp_cgroups):
         print("Determining T-app performance")
         generate_singleknob_bw(knob.name, filename, nvme_device, exp_cgroups)
 
-    with open(filename, "r") as f:
+    with open(f'./out/{nvme_device.eui}/bfq.json', "r") as f:
         j = json.load(f)
         return int(j['jobs'][0]['read']['bw_mean']) * 1024
 
@@ -253,9 +354,18 @@ IO_KNOBS = {
 
 EXPERIMENTS = {
     "unsaturated": Experiment("unsaturated", False, False, unsaturated_job),
+    "unsaturatedw": Experiment("unsaturatedw", False, True, unsaturated_job),
     "saturated": Experiment("saturated", True, False, saturated_job),
-    "unfairapp": Experiment("unfairapp", True, False, unfairapp_saturated_job),
+    "saturatedw": Experiment("saturatedw", True, True, saturated_job),
+    #"unfairapp": Experiment("unfairapp", True, False, unfairapp_saturated_job),
+    #"unfairappw": Experiment("unfairappw", True, True, unfairapp_saturated_job),
     "requestsize": Experiment("requestsize", True, False, requestsize_job),
+    "requestsizew": Experiment("requestsizew", True, True, requestsize_job),
+    "requestsizelarge": Experiment("requestsizelarge", True, False, requestsize_large_job),
+    "requestsizesplit": Experiment("requestsizesplit", True, False, requestsize_split_job),
+    "requestsizerange": Experiment("requestsizerange", True, False, requestsize_range_job),
+    # Add write-onlu
+    # Add rw-mix
 }
 
 
@@ -264,9 +374,7 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
     job_runner = fio.FioRunner('sudo ../dependencies/fio/fio', fio.FioRunnerOptions(overwrite=True, parse_only=False))
     outdir = f'./out/{nvme_device.eui}'
 
-
     for knob in knobs_to_test: 
-
         print(f"___________________________________")
         print(f"Experiment [{knob.name}]") 
         print(f"___________________________________")
@@ -281,10 +389,17 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
             group.force_cpuset_cpus(CORES)
 
         single_job_bw = get_singleknob_bw(knob, nvme_device, exp_cgroups)
-        print(f"T-app in isolation gets {single_job_bw / (1024 * 1024)} MiB/s with {knob.name} [sat is {saturation_point['max'] / 1024}]")
+        min_num_jobs = ((saturation_point['max'] / 1024) / (single_job_bw / (1024 * 1024))) + 1
+        print(f"T-app in isolation gets {single_job_bw / (1024 * 1024)} MiB/s with {knob.name} [sat is {saturation_point['max'] / 1024}]; so we need at least {min_num_jobs} jobs for saturation")
 
         # We do in reverse so we can kill "early"
         for numjobs in NUMJOBS[::1]:
+            if numjobs < min_num_jobs and not "unsaturated" in experiment.name:
+                print(f"Ignoring numjobs={numjobs} as it does not saturate")
+                continue
+            elif numjobs >= min_num_jobs and "unsaturated" in experiment.name:
+                print(f"Ignoring numjobs={numjobs} as it saturates")
+                continue
             print(f"Generating experiment [numjobs={numjobs}]")        
 
             weights = []
@@ -298,9 +413,14 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
             gjob.add_options([
                 fio.GroupReportingOption(False),
             ])
+            rates = []
             for i, tapp in enumerate(setup_sjobs(exp_cgroups, numjobs)):
-                tapp = experiment.change_jobs(tapp, saturation_point, numjobs, i, single_job_bw)              
-                gjob.add_job(tapp)      
+                tapp, bw_rate = experiment.change_jobs(tapp, saturation_point, numjobs, i, single_job_bw)              
+                rates.append(float(bw_rate) / 1024)
+                gjob.add_job(tapp) 
+                # .
+                sjob_cgroup_path = f"{exp_cgroups[i].subpath}/fio-workload.service"
+                cgroups.create_cgroup_service(sjob_cgroup_path)
             job_gen.generate_job_file(f'./tmp/{experiment.name}-{knob.name}-{numjobs}', gjob)
 
             print(f"Running experiment [experiment={experiment.name} numjobs={numjobs}]")                    
@@ -310,6 +430,13 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
                 f'./{outdir}/{experiment.name}-{knob.name}-{numjobs}.json')
             fioproc.wait()
 
+            with open(f'./{outdir}/{experiment.name}-{knob.name}-{numjobs}.json', 'r') as f:
+                js = json.load(f)
+                vs = [float(j['read']['bw_mean']) for j in js['jobs']]
+                jains = proportional_slowdown_jains(vs, weights, rates)
+                bwsum = sum(vs) / (1024 * 1024)
+                print(f"Jains fairness: {jains} -- BW sum {bwsum} GiB/s")
+
 def run_experiments(experiments_to_run: list[Experiment], knobs_to_test: list[IOKnob]):
     nvme_device = get_nvmedev()
     outdir = f'./out/{nvme_device.eui}'
@@ -318,6 +445,7 @@ def run_experiments(experiments_to_run: list[Experiment], knobs_to_test: list[IO
 
     exp_cgroups = setup_cgroups()
     saturation_point = parse_saturation_points(nvme_device)
+    print(saturation_point)
 
     # Run
     for experiment in experiments_to_run:

@@ -25,3 +25,8 @@ for experiment in below_saturation saturated rates weights size write_only rw; d
     python3 fairness.py --experiment=${experiment}
 done
 ```
+
+Debug helpers:
+```bash
+grep . /sys/fs/cgroup/{io.cost*,example-workload-{0..256}.slice/io.weight}
+```

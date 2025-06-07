@@ -231,6 +231,17 @@ def unsaturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
     ])
     return (sjob, bw_rate)
 
+def unfair_unsaturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    div = [1, 2, 4, 8][i % 4]
+    # Limit, we go below saturation by dividing max by jobcount and creating a "ghost job"
+    bw_rate = f"{ ((saturation_point['min'] * 1024) // (numjobs+1)) / div}"
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    sjob.add_options([
+        roption
+    ])
+    return (sjob, bw_rate)
+
+
 def saturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
     # Limit, we give each tenant as much as it can support
     bw_rate = single_job_bw
@@ -242,7 +253,7 @@ def saturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
 
 def unfairapp_saturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
     # We give some apps more than others
-    div = (i % 4) + 1
+    div = [1, 2, 4, 8][i % 4]
     bw_rate = f"{int(single_job_bw // div)}"
     roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
     sjob.add_options([
@@ -302,6 +313,55 @@ def requestsize_range_job(sjob, saturation_point, numjobs, i, single_job_bw):
     ])
     return (sjob, bw_rate)
 
+def seqread_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    joption = fio.JobOption(fio.JobWorkload.SEQ_READ)
+    sjob.add_options([
+        roption,
+        joption
+    ])
+    return (sjob, bw_rate)
+
+def mixedread_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    joption = fio.JobOption([fio.JobWorkload.SEQ_READ, fio.JobWorkload.RAN_READ][i%2])
+    sjob.add_options([
+        roption,
+        joption
+    ])
+    return (sjob, bw_rate)
+
+def ranwrite_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    joption = fio.JobOption(fio.JobWorkload.RAN_WRITE)
+    toption = fio.TimedOption('20s', '10m')
+    sjob.add_options([
+        roption,
+        joption,
+        toption
+    ])
+    return (sjob, bw_rate)
+
+def mixedwrite_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    joption = fio.JobOption(fio.JobWorkload.MIXED)
+    toption = fio.TimedOption('20s', '10m')
+    sjob.add_options([
+        roption,
+        joption,
+        toption
+    ])
+    return (sjob, bw_rate)
+
+
 
 def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     job_gen = fio.FioJobGenerator(True)
@@ -353,19 +413,29 @@ IO_KNOBS = {
 }
 
 EXPERIMENTS = {
+    # General random read
     "unsaturated": Experiment("unsaturated", False, False, unsaturated_job),
     "unsaturatedw": Experiment("unsaturatedw", False, True, unsaturated_job),
+    "unfairunsaturated": Experiment("unsaturated", False, False, unfair_unsaturated_job),
     "saturated": Experiment("saturated", True, False, saturated_job),
     "saturatedw": Experiment("saturatedw", True, True, saturated_job),
-    #"unfairapp": Experiment("unfairapp", True, False, unfairapp_saturated_job),
-    #"unfairappw": Experiment("unfairappw", True, True, unfairapp_saturated_job),
+    "saturatedunfair": Experiment("saturatedunfairw", True, False, unfairapp_saturated_job),
+    "saturatedunfairw": Experiment("saturatedunfairw", True, True, unfairapp_saturated_job),
+    # Random read rq size impact
     "requestsize": Experiment("requestsize", True, False, requestsize_job),
     "requestsizew": Experiment("requestsizew", True, True, requestsize_job),
     "requestsizelarge": Experiment("requestsizelarge", True, False, requestsize_large_job),
     "requestsizesplit": Experiment("requestsizesplit", True, False, requestsize_split_job),
     "requestsizerange": Experiment("requestsizerange", True, False, requestsize_range_job),
-    # Add write-onlu
-    # Add rw-mix
+    # Read access pattern
+    "seqread": Experiment("seqread", True, False, seqread_job),
+    "mixedread": Experiment("mixedread", True, False, mixedread_job),
+    # Write-only
+    "ranwrite": Experiment("ranwrite", True, False, ranwrite_job),
+    "ranwritew": Experiment("ranwritew", True, True, ranwrite_job),
+    "mixedwrite": Experiment("mixedwrite", True, False, mixedwrite_job)
+    "mixedwritew": Experiment("mixedwritew", True, True, mixedwrite_job)
+    # R/W-mix
 }
 
 
@@ -393,7 +463,8 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
         print(f"T-app in isolation gets {single_job_bw / (1024 * 1024)} MiB/s with {knob.name} [sat is {saturation_point['max'] / 1024}]; so we need at least {min_num_jobs} jobs for saturation")
 
         # We do in reverse so we can kill "early"
-        for numjobs in NUMJOBS[::1]:
+        njs = [256] if "write" in experiment.name else NUMJOBS[::-1]
+        for numjobs in njs:
             if numjobs < min_num_jobs and not "unsaturated" in experiment.name:
                 print(f"Ignoring numjobs={numjobs} as it does not saturate")
                 continue
@@ -432,10 +503,22 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
 
             with open(f'./{outdir}/{experiment.name}-{knob.name}-{numjobs}.json', 'r') as f:
                 js = json.load(f)
-                vs = [float(j['read']['bw_mean']) for j in js['jobs']]
+                vs = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
                 jains = proportional_slowdown_jains(vs, weights, rates)
+                jains2 = jains_fairness_index(vs, weights)
                 bwsum = sum(vs) / (1024 * 1024)
-                print(f"Jains fairness: {jains} -- BW sum {bwsum} GiB/s")
+                print(f"Jains fairness: {jains} or {jains2} -- BW sum {bwsum} GiB/s")
+
+            # Cleanup state
+            if not nvme.isoptane and "write" in experiment.name:
+                print("Resetting device state by preconditioning")
+                nvme_format(nvme_device)
+                fioproc = job_runner.run_job_deferred(\
+                    f'./precondition.fio',\
+                    f'./{outdir}/{experiment.name}-precond.json',
+                    fio_extra_opts=[f"filename={nvme_device.syspath}"])
+                fioproc.wait()
+                print("Done preconditioning")
 
 def run_experiments(experiments_to_run: list[Experiment], knobs_to_test: list[IOKnob]):
     nvme_device = get_nvmedev()

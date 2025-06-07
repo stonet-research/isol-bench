@@ -24,7 +24,7 @@ class FioRunner:
     def __generate_cmd(
         self, jobpath, outpath, fio_shell_opts=[], fio_extra_opts=[]
     ) -> str:
-        extra_opts = fio_extra_opts + ["output-format=json", f"output={outpath}", "eta=never"]
+        extra_opts = fio_extra_opts + ["output-format=json", f"output={outpath}", "eta=never", "allow_file_create=0"]
         if self.options.parse_only:
             extra_opts = extra_opts + ["parse-only"]
         job_str = ""

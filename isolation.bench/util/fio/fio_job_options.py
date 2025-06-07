@@ -11,7 +11,7 @@ class JobWorkload(Enum):
     RAN_WRITE = 2
     SEQ_READ = 3
     RAN_READ = 4
-
+    MIXED = 5
 
 class IOEngine(Enum):
     IO_URING = 1
@@ -297,9 +297,10 @@ class JobOption(FioOption):
                 "rw",
                 {
                     JobWorkload.SEQ_WRITE: "write",
-                    JobWorkload.RAN_WRITE: "writerand",
+                    JobWorkload.RAN_WRITE: "randwrite",
                     JobWorkload.SEQ_READ: "read",
                     JobWorkload.RAN_READ: "randread",
+                    JobWorkload.MIXED: "randrw",
                 }.get(self.workload, "read"),
             )
         ]

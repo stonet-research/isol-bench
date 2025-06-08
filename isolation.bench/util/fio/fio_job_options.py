@@ -286,6 +286,13 @@ class AllowedCPUsOption(FioOption):
     def to_opt(self) -> [(str, str)]:
         return [("cpus_allowed", self.cpus)]
 
+@dataclass
+class RWMixRatioOption(FioOption):
+    ratio: str
+
+    def to_opt(self) -> [(str, str)]:
+        return [("rwmixread", self.ratio)]
+
 # Enumerated types
 @dataclass
 class JobOption(FioOption):

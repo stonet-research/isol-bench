@@ -361,6 +361,50 @@ def mixedwrite_job(sjob, saturation_point, numjobs, i, single_job_bw):
     ])
     return (sjob, bw_rate)
 
+def mixedwrite2_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    joption = fio.JobOption(fio.JobWorkload.MIXED)
+    toption = fio.TimedOption('20s', '10m')
+    moption = fio.RWMixRatioOption("90")
+    sjob.add_options([
+        roption,
+        joption,
+        toption,
+        moption
+    ])
+    return (sjob, bw_rate)
+
+def mixedranwrite3_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    joption = fio.JobOption([fio.JobWorkload.RAN_WRITE, fio.JobWorkload.RAN_READ][i % 2])
+    toption = fio.TimedOption('20s', '10m')
+    sjob.add_options([
+        roption,
+        joption,
+        toption
+    ])
+    return (sjob, bw_rate)
+
+def mixedranwrite4_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    joption = fio.JobOption([fio.JobWorkload.RAN_WRITE, fio.JobWorkload.RAN_READ][i % 2])
+    toption = fio.TimedOption('20s', '10m')
+    coption = fio.ConcurrentWorkerOption('8')
+    sjob.add_options([
+        roption,
+        joption,
+        toption,
+        coption
+    ])
+    return (sjob, bw_rate)
+
+
 
 
 def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
@@ -433,9 +477,15 @@ EXPERIMENTS = {
     # Write-only
     "ranwrite": Experiment("ranwrite", True, False, ranwrite_job),
     "ranwritew": Experiment("ranwritew", True, True, ranwrite_job),
-    "mixedwrite": Experiment("mixedwrite", True, False, mixedwrite_job)
-    "mixedwritew": Experiment("mixedwritew", True, True, mixedwrite_job)
-    # R/W-mix
+   # R/W-mix
+    "mixedwrite": Experiment("mixedwrite", True, False, mixedwrite_job),
+    "mixedwritew": Experiment("mixedwritew", True, True, mixedwrite_job),
+    "mixed90write": Experiment("mixed90write", True, False, mixedwrite2_job),
+    "mixed90writew": Experiment("mixed90writew", True, True, mixedwrite2_job),
+    "mixedwrite3": Experiment("mixedwrite3", True, False, mixedranwrite3_job),
+    "mixedwrite3w": Experiment("mixedwrite3w", True, True, mixedranwrite3_job),
+    "mixedwrite4": Experiment("mixedwrite4", True, False, mixedranwrite4_job),
+    "mixedwrite4w": Experiment("mixedwrite4w", True, True, mixedranwrite4_job),
 }
 
 
@@ -510,7 +560,7 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
                 print(f"Jains fairness: {jains} or {jains2} -- BW sum {bwsum} GiB/s")
 
             # Cleanup state
-            if not nvme.isoptane and "write" in experiment.name:
+            if not nvme_device.isoptane and "write" in experiment.name:
                 print("Resetting device state by preconditioning")
                 nvme_format(nvme_device)
                 fioproc = job_runner.run_job_deferred(\

@@ -417,9 +417,9 @@ def get_iocostmodel_from_nvme_model(nvme_device, unreachable = False):
     model = None
     amplifier = 10 if unreachable else 1
     if "Samsung SSD 980 PRO" in nvme_device.model:
-        model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840 * amplifier, 786432 * amplifier, 786432 * amplifier, 1063126016 * amplifier, 135560 * amplifier, 130734 * amplifier)
+        model = IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840 * amplifier, 786432 * amplifier, 786432 * amplifier, 1063126016 * amplifier, 135560 * amplifier, 130734 * amplifier)
     elif "INTEL SSDPE21D280GA" in nvme_device.model:
-        model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2413821952 * amplifier, 589312 * amplifier, 589312 * amplifier, 2413821952 * amplifier, 589312 * amplifier, 589312 * amplifier)
+        model = IOCostModel(nvme_device.major_minor, 'user', 'linear', 2413821952 * amplifier, 589312 * amplifier, 589312 * amplifier, 2413821952 * amplifier, 589312 * amplifier, 589312 * amplifier)
     else:
         raise ValueError("Model is not known, please add your own")
     return model

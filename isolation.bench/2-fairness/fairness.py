@@ -18,6 +18,7 @@ EXPERIMENT_MAX_TENANT_COUNT=256
 CORES = '1-10'
 NUMJOBS = [2, 4, 8, 16, 32, 64, 128, 256]
 NUMJOBS_FORCED = False
+ITER = [1]
 
 @dataclass
 class IOKnob:
@@ -692,31 +693,33 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
                 cgroups.create_cgroup_service(sjob_cgroup_path)
             job_gen.generate_job_file(f'./tmp/{experiment.name}-{knob.name}-{numjobs}', gjob)
 
-            print(f"Running experiment [experiment={experiment.name} numjobs={numjobs}]")                    
+            for it in ITER:
+    
+                print(f"Running experiment [experiment={experiment.name} numjobs={numjobs}] ITER={it}")                    
 
-            fioproc = job_runner.run_job_deferred(\
-                f'./tmp/{experiment.name}-{knob.name}-{numjobs}',\
-                f'./{outdir}/{experiment.name}-{knob.name}-{numjobs}.json')
-            fioproc.wait()
-
-            with open(f'./{outdir}/{experiment.name}-{knob.name}-{numjobs}.json', 'r') as f:
-                js = json.load(f)
-                vs = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
-                jains = proportional_slowdown_jains(vs, weights, rates)
-                jains2 = jains_fairness_index_weighted(vs, weights)
-                bwsum = sum(vs) / (1024 * 1024)
-                print(f"Jains fairness: {jains} or {jains2} -- BW sum {bwsum} GiB/s")
-
-            # Cleanup state
-            if not nvme_device.isoptane and "write" in experiment.name:
-                print("Resetting device state by preconditioning")
-                nvme_format(nvme_device)
                 fioproc = job_runner.run_job_deferred(\
-                    f'./precondition.fio',\
-                    f'./{outdir}/{experiment.name}-precond.json',
-                    fio_extra_opts=[f"filename={nvme_device.syspath}"])
+                    f'./tmp/{experiment.name}-{knob.name}-{numjobs}',\
+                    f'./{outdir}/{experiment.name}-{knob.name}-{numjobs}-{it}.json')
                 fioproc.wait()
-                print("Done preconditioning")
+
+                with open(f'./{outdir}/{experiment.name}-{knob.name}-{numjobs}-{it}.json', 'r') as f:
+                    js = json.load(f)
+                    vs = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
+                    jains = proportional_slowdown_jains(vs, weights, rates)
+                    jains2 = jains_fairness_index_weighted(vs, weights)
+                    bwsum = sum(vs) / (1024 * 1024)
+                    print(f"Jains fairness: {jains} (PS) or {jains2} (LOAD) @ aggregated BW of {bwsum} GiB/s")
+
+                # Cleanup state
+                if not nvme_device.isoptane and "write" in experiment.name:
+                    print("Resetting device state by preconditioning")
+                    nvme_format(nvme_device)
+                    fioproc = job_runner.run_job_deferred(\
+                        f'./precondition.fio',\
+                        f'./{outdir}/{experiment.name}-precond.json',
+                        fio_extra_opts=[f"filename={nvme_device.syspath}"])
+                    fioproc.wait()
+                    print("Done preconditioning")
 
 def run_experiments(experiments_to_run: list[Experiment], knobs_to_test: list[IOKnob]):
     nvme_device = get_nvmedev()
@@ -753,6 +756,7 @@ if __name__ == "__main__":
     parser.add_argument(f"--isolation", type=bool, required=False, default=False)
     # Shortcut
     parser.add_argument(f"--numjobs", type=int, required=False, default=0)
+    parser.add_argument(f"--iter", type=int, required=False, default=1)
     # cgroups
     for key in IO_KNOBS.keys():
         parser.add_argument(f"--{key}", type=bool, required=False, default=False)
@@ -778,6 +782,8 @@ if __name__ == "__main__":
         elif arg == "numjobs" and val > 0:
             NUMJOBS = [val]
             NUMJOBS_FORCED = True
+        elif arg == "iter":
+            ITER = range(val)
         elif arg in IO_KNOBS and val:
             knobs_to_test.append(IO_KNOBS[arg])
         elif arg in EXPERIMENTS and val:

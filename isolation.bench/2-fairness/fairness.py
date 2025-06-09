@@ -17,6 +17,7 @@ EXPERIMENT_MAX_TENANT_COUNT=256
 
 CORES = '1-10'
 NUMJOBS = [2, 4, 8, 16, 32, 64, 128, 256]
+NUMJOBS_FORCED = False
 
 @dataclass
 class IOKnob:
@@ -45,6 +46,38 @@ def iomax_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgro
 
 def bfq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
     nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "8")
+
+    # We want to use the default weight 100 if weights are uniform
+    if sum(weights) == len(weights):
+        for i, w in enumerate(weights): 
+            exp_cgroups[i].ioweight = cgroups.IOBFQWeight("default", 100)
+        return
+
+    # Ensure weights scale up but we are using the full range (e.g., not below 100 if possible)
+    for i, w in enumerate(weights): 
+        exp_cgroups[i].iobfqweight = cgroups.IOBFQWeight("default", w) 
+
+def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "1")
+
+    # We want to use the default weight 100 if weights are uniform
+    if sum(weights) == len(weights):
+        for i, w in enumerate(weights): 
+            exp_cgroups[i].ioweight = cgroups.IOBFQWeight("default", 100)
+        return
+
+    # Ensure weights scale up but we are using the full range (e.g., not below 100 if possible)
+    for i, w in enumerate(weights): 
+        exp_cgroups[i].iobfqweight = cgroups.IOBFQWeight("default", w) 
+
+def bfq3_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "0")
 
     # We want to use the default weight 100 if weights are uniform
     if sum(weights) == len(weights):
@@ -536,6 +569,8 @@ def get_singleknob_bw(knob : IOKnob, nvme_device, exp_cgroups, force = False):
 IO_KNOBS = {
     "none": IOKnob("none", none_configure_cgroups),
     "bfq": IOKnob("bfq", bfq_configure_cgroups),
+    "bfq2": IOKnob("bfq2", bfq2_configure_cgroups),
+    "bfq3": IOKnob("bfq3", bfq3_configure_cgroups),
     "mq": IOKnob("mq", mq_configure_cgroups),
     "iomax": IOKnob("iomax", iomax_configure_cgroups),
     "iolat": IOKnob("iolat", iolat_configure_cgroups),
@@ -625,6 +660,8 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
 
         # We do in reverse so we can kill "early"
         njs = [256] if "write" in experiment.name else NUMJOBS[::-1]
+        if NUMJOBS_FORCED:
+            njs = NUMJOBS
         for numjobs in njs:
             if numjobs < min_num_jobs and not "unsaturated" in experiment.name:
                 print(f"Ignoring numjobs={numjobs} as it does not saturate")
@@ -666,7 +703,7 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
                 js = json.load(f)
                 vs = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
                 jains = proportional_slowdown_jains(vs, weights, rates)
-                jains2 = jains_fairness_index(vs, weights)
+                jains2 = jains_fairness_index_weighted(vs, weights)
                 bwsum = sum(vs) / (1024 * 1024)
                 print(f"Jains fairness: {jains} or {jains2} -- BW sum {bwsum} GiB/s")
 
@@ -714,6 +751,8 @@ if __name__ == "__main__":
     parser.add_argument(f"--max_saturation", type=str, required=False, default=False)
     # Isol
     parser.add_argument(f"--isolation", type=bool, required=False, default=False)
+    # Shortcut
+    parser.add_argument(f"--numjobs", type=int, required=False, default=0)
     # cgroups
     for key in IO_KNOBS.keys():
         parser.add_argument(f"--{key}", type=bool, required=False, default=False)
@@ -736,6 +775,9 @@ if __name__ == "__main__":
             max_saturation = IO_KNOBS[val] if val in IO_KNOBS else None
         elif arg == "isolation":
             isol = val
+        elif arg == "numjobs" and val > 0:
+            NUMJOBS = [val]
+            NUMJOBS_FORCED = True
         elif arg in IO_KNOBS and val:
             knobs_to_test.append(IO_KNOBS[arg])
         elif arg in EXPERIMENTS and val:

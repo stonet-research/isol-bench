@@ -19,7 +19,7 @@ PLOT_ELEMENTS = {
     'iolat': 'io.latency',
     'iocost': 'io.cost',
     'mq': 'MQ-DL',
-    'bfq': 'BFQ',
+    'bfq3': 'BFQ',
     # add your own here
 }
 
@@ -77,7 +77,7 @@ def plot_cdf(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
             plt.plot(v, x, label=PLOT_ELEMENTS[knob], linewidth=4, linestyle='solid', marker=markers[i], color=colors[i], markersize=8)
 
             if jobs >= 128:
-                ax.annotate(f'{PLOT_ELEMENTS[knob]}: {to_one_digit(v[-4] / 1000)}', xy=(6200, 0.99), xytext=(5000, 0.55-0.1*i), arrowprops = dict(facecolor ='black',
+                ax.annotate(f'{PLOT_ELEMENTS[knob]}: {to_one_digit(v[-4] / 1000)}', xy=(6200, 0.99), xytext=(5700, 0.55-0.1*i), arrowprops = dict(facecolor ='black',
                                 shrink = 0.05) if i == 0 else None,)
             else:
                 ax.annotate(f'{PLOT_ELEMENTS[knob]}: {to_one_digit(v[-4])}', xy=(v[-4], 0.99), xytext=(190 + ( (i // 3) * 550), 0.80-0.1*i + (0.3 * (i // 3))), arrowprops = dict(facecolor ='black',
@@ -144,8 +144,7 @@ def plot_cpu(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
     plt.xlabel("#LC-apps")
     plt.ylabel("CPU utilization (%)")
     plt.grid()
-    if not cgroups_active:
-        plt.legend(ncol=1, loc='lower right')
+    plt.legend(ncol=1, loc='lower right')
 
     # Save plot       
     os.makedirs(f'./plots', exist_ok = True)

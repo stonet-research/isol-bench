@@ -478,7 +478,7 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     print("ranwrite")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}-ranw', f"{filename}-ranw")
     fioproc.wait()   
-    if not nvme.isoptane:
+    if not nvme_device.isoptane:
         print("precond")
         nvme_format(nvme_device)
         fioproc = job_runner.run_job_deferred(\
@@ -502,7 +502,7 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     print("MIXED 50/50")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}-mixed', f"{filename}-mixed")
     fioproc.wait()   
-    if not nvme.isoptane:
+    if not nvme_device.isoptane:
         print("precond")
         nvme_format(nvme_device)
         fioproc = job_runner.run_job_deferred(\
@@ -527,7 +527,7 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     print("MIXED 90/10")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}-mixed90', f"{filename}-mixed90")
     fioproc.wait()   
-    if not nvme.isoptane:
+    if not nvme_device.isoptane:
         print("precond")
         nvme_format(nvme_device)
         fioproc = job_runner.run_job_deferred(\

@@ -159,7 +159,7 @@ def io_latency_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list
     cgroup_c.iolatency = cgroups.IOLatency(nvme_device.major_minor, 100)
 
 def io_cost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
-    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 89698, 110036, 1063126016, 135560, 130734)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device)
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 100, 95.00, 1000, 50.00, 150.00)
     cgroups.set_iocost(model, qos)
 

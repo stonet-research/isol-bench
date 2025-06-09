@@ -101,7 +101,8 @@ def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgro
         group.iolatency = cgroups.IOLatency(major_minor, tlat)
 
 def iocost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], specified_bw, weights):
-    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 786432, 786432, 1063126016, 135560, 130734)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device, False)
+    # We focus on bandwidth here, so sacrifice latency, we do not need it as a sign of congestion as it complicates matters 
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1_000_000, 95.00, 1_000_000, 50.00, 150.00)
     cgroups.set_iocost(model, qos)
 
@@ -405,8 +406,6 @@ def mixedranwrite4_job(sjob, saturation_point, numjobs, i, single_job_bw):
     return (sjob, bw_rate)
 
 
-
-
 def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     job_gen = fio.FioJobGenerator(True)
     job_runner = fio.FioRunner('sudo ../dependencies/fio/fio', fio.FioRunnerOptions(overwrite=True, parse_only=False))
@@ -417,9 +416,9 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
         fio.GroupReportingOption(True),
     ])
     gjob.add_job(setup_sjobs(exp_cgroups, 1)[0])
-    job_gen.generate_job_file(f'./tmp/{name}', gjob)
-        
+    job_gen.generate_job_file(f'./tmp/{name}', gjob)        
     # Run
+    print("RQ = 4096")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}', filename)
     fioproc.wait()   
 
@@ -431,15 +430,115 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     ])
     gjob.add_job(setup_sjobs(exp_cgroups, 1)[0])
     job_gen.generate_job_file(f'./tmp/{name}-rq', gjob)
-        
     # Run
-    fioproc = job_runner.run_job_deferred(f'./tmp/{name}-rq', f"{filename}-rq")
+    print("RQ = 64k")
+    fioproc = job_runner.run_job_deferred(f'./tmp/{name}-rq', f'{filename}-rq')
     fioproc.wait()   
 
-def get_singleknob_bw(knob : IOKnob, nvme_device, exp_cgroups):
+   # Setup job extra large rq
+    gjob = setup_gjob(nvme_device.syspath)
+    gjob.add_options([
+        fio.GroupReportingOption(True),
+        fio.RequestSizeOption(f"{256 * 1024}")
+    ])
+    gjob.add_job(setup_sjobs(exp_cgroups, 1)[0])
+    job_gen.generate_job_file(f'./tmp/{name}-rqextra', gjob)        
+    # Run
+    print("RQ = 256k")
+    fioproc = job_runner.run_job_deferred(f'./tmp/{name}-rqextra', f"{filename}-rqextra")
+    fioproc.wait()   
+
+   # seq read
+    gjob = setup_gjob(nvme_device.syspath)
+    gjob.add_options([
+        fio.GroupReportingOption(True),
+        fio.RequestSizeOption("4096"),
+        fio.JobOption(fio.JobWorkload.SEQ_READ)
+    ])
+    gjob.add_job(setup_sjobs(exp_cgroups, 1)[0])
+    job_gen.generate_job_file(f'./tmp/{name}-seqr', gjob)        
+    # Run
+    print("seqread")
+    fioproc = job_runner.run_job_deferred(f'./tmp/{name}-seqr', f"{filename}-seqr")
+    fioproc.wait()   
+
+   # ranwrite
+    gjob = setup_gjob(nvme_device.syspath)
+    gjob.add_options([
+        fio.GroupReportingOption(True),
+        fio.RequestSizeOption("4096"),
+        fio.JobOption(fio.JobWorkload.RAN_WRITE)
+    ])
+    sjob = setup_sjobs(exp_cgroups, 1)[0]
+    toption = fio.TimedOption('20s', '10m')
+    sjob.add_options([toption])
+    gjob.add_job(sjob)
+    job_gen.generate_job_file(f'./tmp/{name}-ranw', gjob)        
+    # Run
+    print("ranwrite")
+    fioproc = job_runner.run_job_deferred(f'./tmp/{name}-ranw', f"{filename}-ranw")
+    fioproc.wait()   
+    if not nvme.isoptane:
+        print("precond")
+        nvme_format(nvme_device)
+        fioproc = job_runner.run_job_deferred(\
+            f'./precondition.fio',\
+            f'./out/precond.json', fio_extra_opts=[f"filename={nvme_device.syspath}"])
+        fioproc.wait()
+
+   # mixed
+    gjob = setup_gjob(nvme_device.syspath)
+    gjob.add_options([
+        fio.GroupReportingOption(True),
+        fio.RequestSizeOption("4096"),
+        fio.JobOption(fio.JobWorkload.MIXED)
+    ])
+    sjob = setup_sjobs(exp_cgroups, 1)[0]
+    toption = fio.TimedOption('20s', '10m')
+    sjob.add_options([toption])
+    gjob.add_job(sjob)
+    job_gen.generate_job_file(f'./tmp/{name}-mixed', gjob)        
+    # Run
+    print("MIXED 50/50")
+    fioproc = job_runner.run_job_deferred(f'./tmp/{name}-mixed', f"{filename}-mixed")
+    fioproc.wait()   
+    if not nvme.isoptane:
+        print("precond")
+        nvme_format(nvme_device)
+        fioproc = job_runner.run_job_deferred(\
+            f'./precondition.fio',\
+            f'./out/precond.json', fio_extra_opts=[f"filename={nvme_device.syspath}"])
+        fioproc.wait()
+
+   # mixed 90
+    gjob = setup_gjob(nvme_device.syspath)
+    gjob.add_options([
+        fio.GroupReportingOption(True),
+        fio.RequestSizeOption("4096"),
+        fio.JobOption(fio.JobWorkload.MIXED),
+        fio.RWMixRatioOption("90")
+    ])
+    sjob = setup_sjobs(exp_cgroups, 1)[0]
+    toption = fio.TimedOption('20s', '10m')
+    sjob.add_options([toption])
+    gjob.add_job(sjob)
+    job_gen.generate_job_file(f'./tmp/{name}-mixed90', gjob)        
+    # Run
+    print("MIXED 90/10")
+    fioproc = job_runner.run_job_deferred(f'./tmp/{name}-mixed90', f"{filename}-mixed90")
+    fioproc.wait()   
+    if not nvme.isoptane:
+        print("precond")
+        nvme_format(nvme_device)
+        fioproc = job_runner.run_job_deferred(\
+            f'./precondition.fio',\
+            f'./out/precond.json', fio_extra_opts=[f"filename={nvme_device.syspath}"])
+        fioproc.wait()
+
+def get_singleknob_bw(knob : IOKnob, nvme_device, exp_cgroups, force = False):
     filename = f'./out/{nvme_device.eui}/{knob.name}.json' 
 
-    if not os.path.exists(filename):
+    if force or not os.path.exists(filename):
         print("Determining T-app performance")
         generate_singleknob_bw(knob.name, filename, nvme_device, exp_cgroups)
 
@@ -488,6 +587,31 @@ EXPERIMENTS = {
     "mixedwrite4w": Experiment("mixedwrite4w", True, True, mixedranwrite4_job),
 }
 
+
+def find_isolation(knobs_to_test: list[IOKnob]):
+    nvme_device = get_nvmedev()
+    outdir = f'./out/{nvme_device.eui}'
+    os.makedirs(outdir, exist_ok = True)
+    os.makedirs(f'./tmp', exist_ok = True)
+
+    exp_cgroups = setup_cgroups()
+
+    for knob in knobs_to_test:
+        # Preamble
+        cgroups.disable_iocontrol_with_groups(exp_cgroups)
+        del nvme_device.io_scheduler
+        knob.configure_cgroups(nvme_device, exp_cgroups, (1024 * 1024 * 1024 * 10), [1])
+        for group in exp_cgroups:
+            group.force_cpuset_cpus(CORES)
+
+        print(f"Finding isolation point for {knob.name}")
+        get_singleknob_bw(knob, nvme_device, exp_cgroups, True)
+
+    # Disable
+    cgroups.disable_iocontrol_with_groups(exp_cgroups)
+    del nvme_device.io_scheduler
+    for group in exp_cgroups:
+        group.force_cpuset_cpus('')
 
 def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_device: nvme.NVMeDevice, exp_cgroups, saturation_point):
     job_gen = fio.FioJobGenerator(True)
@@ -601,6 +725,8 @@ if __name__ == "__main__":
     parser.add_argument(f"--find_saturation", type=bool, required=False, default=False)
     parser.add_argument(f"--min_saturation", type=str, required=False, default=False)
     parser.add_argument(f"--max_saturation", type=str, required=False, default=False)
+    # Isol
+    parser.add_argument(f"--isolation", type=bool, required=False, default=False)
     # cgroups
     for key in IO_KNOBS.keys():
         parser.add_argument(f"--{key}", type=bool, required=False, default=False)
@@ -613,6 +739,7 @@ if __name__ == "__main__":
     experiments_to_run = []
     find_saturation = False
     min_saturation = max_saturation = None
+    isol = False
     for arg, val in vars(args).items():
         if arg == "find_saturation":
             find_saturation = val
@@ -620,6 +747,8 @@ if __name__ == "__main__":
             min_saturation = IO_KNOBS[val] if val in IO_KNOBS else None
         elif arg == "max_saturation":
             max_saturation = IO_KNOBS[val] if val in IO_KNOBS else None
+        elif arg == "isolation":
+            isol = val
         elif arg in IO_KNOBS and val:
             knobs_to_test.append(IO_KNOBS[arg])
         elif arg in EXPERIMENTS and val:
@@ -630,6 +759,10 @@ if __name__ == "__main__":
         if min_saturation == None or max_saturation == None:
             raise ValueError("Incorrect setup, set min and max for saturation point")
         find_saturation_points(min_saturation, max_saturation)
+    if isol:
+        if not len(knobs_to_test):
+            knobs_to_test = list(IO_KNOBS.values())
+        find_isolation(knobs_to_test)
     # Normal experiment
     else:
         if not len(experiments_to_run):

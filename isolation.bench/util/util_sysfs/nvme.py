@@ -58,6 +58,11 @@ class NVMeDevice(object):
         return self.eui == "0000000000000000"
 
     @property
+    def model(self) -> str:
+        with open(f"{self.NVME_SYSPATH}/{self.devicename}/device/model", "r") as f:
+            return f.readline().strip()
+
+    @property
     def nsid(self) -> int:
         with open(f"{self.NVME_SYSPATH}/{self.devicename}/nsid", "r") as f:
             return int(f.readline())

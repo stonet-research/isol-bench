@@ -33,6 +33,7 @@ def iomax_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: li
 def iomax_inactive_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     major_minor = nvme_device.major_minor
     for group in exp_cgroups:
+        # Unreachable on our SSDs
         group.iomax = cgroups.IOMax(major_minor, 1024 * 1024 * 5000, 1024 * 1024 * 5000, 10_000_000, 10_000_000)
 
 def bfq_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
@@ -52,7 +53,7 @@ def iolat_inactive_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: 
         group.iolatency = cgroups.IOLatency(major_minor, 1000000)
 
 def iocost_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
-    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 89698, 110036, 1063126016, 135560, 130734)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device) 
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1000000, 95.00, 1000000, 50.00, 150.00)
     cgroups.set_iocost(model, qos)
 

@@ -18,22 +18,6 @@ EXPERIMENT_MAX_TENANT_COUNT=256
 CORES = '1-10'
 NUMJOBS = [2, 4, 8, 16, 32, 64, 128, 256]
 
-def proportional_slowdown(l: list[float], isol: list[float]):
-    return [ll / lisol for ll, lisol in zip(l, isol)]
-
-def jains_fairness_index(l: list[float], w: list[int]):
-    if len(l) != len(w):
-        raise ValueError("Incorrect args")
-    n = len(l)
-    lw = [ll / ww for ll, ww in zip(l,w)]
-    f = (sum(lw) ** 2) / (n * sum([llw**2 for llw in lw]))
-    return f
-
-def proportional_slowdown_jains(l: list[float], w: list[int], isol: list[float]):
-    pc = proportional_slowdown(l, isol)
-    print(pc, isol, l, w)
-    return jains_fairness_index(pc, w)
-
 @dataclass
 class IOKnob:
     name: str
@@ -101,9 +85,9 @@ def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgro
         group.iolatency = cgroups.IOLatency(major_minor, tlat)
 
 def iocost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], specified_bw, weights):
-    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device, False)
     # We focus on bandwidth here, so sacrifice latency, we do not need it as a sign of congestion as it complicates matters 
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1_000_000, 95.00, 1_000_000, 50.00, 150.00)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device, False)
     cgroups.set_iocost(model, qos)
 
     # We want to use the default weight 100 if weights are uniform
@@ -418,7 +402,7 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     gjob.add_job(setup_sjobs(exp_cgroups, 1)[0])
     job_gen.generate_job_file(f'./tmp/{name}', gjob)        
     # Run
-    print("RQ = 4096")
+    print("ISOL [randread @ RQ = 4k]")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}', filename)
     fioproc.wait()   
 
@@ -431,7 +415,7 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     gjob.add_job(setup_sjobs(exp_cgroups, 1)[0])
     job_gen.generate_job_file(f'./tmp/{name}-rq', gjob)
     # Run
-    print("RQ = 64k")
+    print("ISOL [randread @ RQ = 64k]")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}-rq', f'{filename}-rq')
     fioproc.wait()   
 
@@ -444,7 +428,7 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     gjob.add_job(setup_sjobs(exp_cgroups, 1)[0])
     job_gen.generate_job_file(f'./tmp/{name}-rqextra', gjob)        
     # Run
-    print("RQ = 256k")
+    print("ISOL [randread @ RQ = 256k]")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}-rqextra', f"{filename}-rqextra")
     fioproc.wait()   
 
@@ -458,7 +442,7 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     gjob.add_job(setup_sjobs(exp_cgroups, 1)[0])
     job_gen.generate_job_file(f'./tmp/{name}-seqr', gjob)        
     # Run
-    print("seqread")
+    print("ISOL [seqread @ RQ = 4k]")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}-seqr', f"{filename}-seqr")
     fioproc.wait()   
 
@@ -471,11 +455,12 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     ])
     sjob = setup_sjobs(exp_cgroups, 1)[0]
     toption = fio.TimedOption('20s', '10m')
-    sjob.add_options([toption])
+    if not nvme_device.isoptane:
+        sjob.add_options([toption])
     gjob.add_job(sjob)
     job_gen.generate_job_file(f'./tmp/{name}-ranw', gjob)        
     # Run
-    print("ranwrite")
+    print("ISOL [ranwrite @ RQ = 4k]")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}-ranw', f"{filename}-ranw")
     fioproc.wait()   
     if not nvme_device.isoptane:
@@ -495,11 +480,12 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     ])
     sjob = setup_sjobs(exp_cgroups, 1)[0]
     toption = fio.TimedOption('20s', '10m')
-    sjob.add_options([toption])
+    if not nvme_device.isoptane:
+        sjob.add_options([toption])
     gjob.add_job(sjob)
     job_gen.generate_job_file(f'./tmp/{name}-mixed', gjob)        
     # Run
-    print("MIXED 50/50")
+    print("ISOL [mixed 50/50 r/w]")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}-mixed', f"{filename}-mixed")
     fioproc.wait()   
     if not nvme_device.isoptane:
@@ -520,11 +506,12 @@ def generate_singleknob_bw(name, filename, nvme_device, exp_cgroups):
     ])
     sjob = setup_sjobs(exp_cgroups, 1)[0]
     toption = fio.TimedOption('20s', '10m')
-    sjob.add_options([toption])
+    if not nvme_device.isoptane:
+        sjob.add_options([toption])
     gjob.add_job(sjob)
     job_gen.generate_job_file(f'./tmp/{name}-mixed90', gjob)        
     # Run
-    print("MIXED 90/10")
+    print("ISOL [mixed 90/10 r/w]")
     fioproc = job_runner.run_job_deferred(f'./tmp/{name}-mixed90', f"{filename}-mixed90")
     fioproc.wait()   
     if not nvme_device.isoptane:
@@ -568,8 +555,8 @@ EXPERIMENTS = {
     "requestsize": Experiment("requestsize", True, False, requestsize_job),
     "requestsizew": Experiment("requestsizew", True, True, requestsize_job),
     "requestsizelarge": Experiment("requestsizelarge", True, False, requestsize_large_job),
-    "requestsizesplit": Experiment("requestsizesplit", True, False, requestsize_split_job),
-    "requestsizerange": Experiment("requestsizerange", True, False, requestsize_range_job),
+    # crashes -- "requestsizesplit": Experiment("requestsizesplit", True, False, requestsize_split_job),
+    # crashes -- "requestsizerange": Experiment("requestsizerange", True, False, requestsize_range_job),
     # Read access pattern
     "seqread": Experiment("seqread", True, False, seqread_job),
     "mixedread": Experiment("mixedread", True, False, mixedread_job),
@@ -583,8 +570,8 @@ EXPERIMENTS = {
     "mixed90writew": Experiment("mixed90writew", True, True, mixedwrite2_job),
     "mixedwrite3": Experiment("mixedwrite3", True, False, mixedranwrite3_job),
     "mixedwrite3w": Experiment("mixedwrite3w", True, True, mixedranwrite3_job),
-    "mixedwrite4": Experiment("mixedwrite4", True, False, mixedranwrite4_job),
-    "mixedwrite4w": Experiment("mixedwrite4w", True, True, mixedranwrite4_job),
+    #"mixedwrite4": Experiment("mixedwrite4", True, False, mixedranwrite4_job),
+    #"mixedwrite4w": Experiment("mixedwrite4w", True, True, mixedranwrite4_job),
 }
 
 

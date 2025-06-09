@@ -103,6 +103,9 @@ class NVMeDevice(object):
     def io_scheduler(self):
         self.io_scheduler = IOScheduler.NONE
 
+    def set_ioscheduler_parameter(self, param: str, val:str):
+        set_sysfs(f"{self.NVME_SYSPATH}/{self.devicename}/queue/iosched/{param}", val)
+
 def __nvme_cmd(cmd):
     return exec_cmd(f'sudo nvme {cmd}')
 

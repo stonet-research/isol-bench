@@ -19,7 +19,7 @@ PLOT_ELEMENTS = {
     'iolat': 'io.latency',
     'iocost': 'io.cost',
     'mq': 'MQ-DL',
-    'bfq': 'BFQ',
+    'bfq3': 'BFQ',
     # add your own here
 }
 

@@ -35,6 +35,18 @@ def iomax_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgro
 
 def bfq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "1")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "8")
+
+def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "8")
+
+def bfq3_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "0")
 
 def mq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     nvme_device.io_scheduler = nvme.IOScheduler.MQ_DEADLINE
@@ -96,6 +108,8 @@ def setup_jobs(device_names: list[str], exp_cgroups: list[cgroups.Cgroup], numjo
 IO_KNOBS = {
     "none": IOKnob("none", none_configure_cgroups),
     "bfq": IOKnob("bfq", bfq_configure_cgroups),
+    "bfq2": IOKnob("bfq2", bfq2_configure_cgroups),
+    "bfq3": IOKnob("bfq3", bfq3_configure_cgroups),
     "mq": IOKnob("mq", mq_configure_cgroups),
     "iomax": IOKnob("iomax", iomax_configure_cgroups),
     "iolat": IOKnob("iolat", iolat_configure_cgroups),

@@ -13,7 +13,8 @@ from util_sysfs.perf import get_perf_cycles
 from plot_utils import *
 import matplotlib.pyplot as plt
 
-KNOBS = ["none", "bfq", "mq", "iomax", "iolat", "iocost"]
+KNOBS = ["none", "iomax", "iolat", "iocost", "mq", "bfq"]
+LABELS = ["none", "io.max", "io.latency", "io.cost", "MQ-DL", "BFQ"]
 WORKLOADS = {
     'randread' : '',
     '64k' : '-rq',
@@ -66,7 +67,7 @@ for experiment, weighted in [
     ]:
     print(f"EXPERIMENT {experiment}")
     print('----------------------------------------------------------')
-    numjobss = [32, 64, 128, 256] if not "write" in experiment else [256]
+    numjobss = [16, 32, 64, 128, 256] if not "write" in experiment else [256]
     if "unsaturated" in experiment:
         numjobss = [2, 4]
     for numjobs in numjobss:
@@ -94,12 +95,15 @@ for experiment, weighted in [
                         rates[i] = isol[knob]['mixed']
                         if 'rwmixread' in js['jobs'][i]['job options']:
                             rates[i] = isol[knob]['mixed90']  
-                jains = proportional_slowdown_jains(vs, weights, rates)
+                try:
+                    jains = proportional_slowdown_jains(vs, weights, rates)
+                    yp.append(jains)
+                except:
+                    yp.append(0)
                 jains2 = jains_fairness_index_weighted(vs, weights)
+                y.append(jains2)
                 bwsum = sum(vs) / (1024 * 1024)
                 print(f"    {knob} Jains fairness: {jains} (PS) or {jains2} (LOAD) @ BW sum {bwsum} GiB/s")
-                yp.append(jains)
-                y.append(jains2)
             except:
                 print(f"    {knob} Jains fairness: - (PS) or - (LOAD) @ BW sum - GiB/s [not measured]")
                 y.append(0)
@@ -109,12 +113,13 @@ for experiment, weighted in [
             fig, ax = plt.subplots()
             colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA]
         
-            plt.bar(KNOBS, yy, color=colors)
+            plt.bar(LABELS, yy, color=colors)
 
             plt.ylim(0, 1)
             #plt.xlabel("Knob")
             plt.ylabel("Jains fairness")
             plt.grid(axis='y')
+            plt.xticks(rotation=45, ha='right')
 
             # Save plot       
             os.makedirs(f'./plots', exist_ok = True)

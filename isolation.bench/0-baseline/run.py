@@ -69,6 +69,39 @@ def ioprio_mq_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
 def ioprio_bfq_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
   return example_job_setup(exp_cgroups)
 
+def ioprio_one_group_bfq_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
+    sjobs = []
+    for sjob in [
+      (0, 'a', '0s', '50s', '1'),
+      (0, 'a', '10s', '70s', '3'),
+      (0, 'a', '20s', '50s', '2')
+    ]:
+      index  = sjob[0]
+      sjob_name   = sjob[1]
+      sjob_start  = sjob[2]
+      sjob_runtime = sjob[3]
+      prioclass = sjob[4]
+      sjob_cgroup_path = f"{exp_cgroups[index].subpath}/fio-workload-{sjob_name}.service"
+      
+      sjob = fio.FioSubJob(sjob_name)
+      sjob.add_options([
+        fio.DelayJobOption(sjob_start),
+        fio.TimedOption('0s', sjob_runtime),
+        fio.RateOption('1500m', '', ''),
+        fio.QDOption(8),
+        fio.RequestSizeOption(f"{64 * 1024}"),
+        fio.ConcurrentWorkerOption(1),
+        fio.CgroupOption(sjob_cgroup_path),
+        fio.AllowedCPUsOption(f'{2+index}'),
+        fio.PrioClassOption(prioclass)
+      ])
+      sjobs.append(sjob)
+    
+      # We need to create service group as well. 
+      cgroups.create_cgroup_service(sjob_cgroup_path)
+        
+    return sjobs
+
 def ioprio_kyber_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
   return example_job_setup(exp_cgroups)
 
@@ -279,6 +312,7 @@ IO_KNOBS = {
     "iopriomq": IOKnob("io.prio_class+mq", ioprio_mq_configure_cgroups, ioprio_mq_setup_fio_jobs),
     "iopriobfq": IOKnob("io.prio_class+bfq", ioprio_bfq_configure_cgroups, ioprio_bfq_setup_fio_jobs),
     "iopriobfq2": IOKnob("io.prio_class+bfq2", ioprio_bfq2_configure_cgroups, ioprio_bfq_setup_fio_jobs),
+    "iopriobfq2_2": IOKnob("io.prio_class+bfq2_2", ioprio_bfq2_configure_cgroups, ioprio_one_group_bfq_setup_fio_jobs),
     "iopriobfq3": IOKnob("io.prio_class+bfq3", ioprio_bfq3_configure_cgroups, ioprio_bfq_setup_fio_jobs),
     "iopriokyber": IOKnob("io.prio_class+kyber", ioprio_kyber_configure_cgroups, ioprio_kyber_setup_fio_jobs),
     "iobfqweight": IOKnob("io.bfq.weight", io_bfq_weight_configure_cgroups, io_bfq_weight_setup_fio_jobs),

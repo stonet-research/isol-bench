@@ -69,6 +69,39 @@ def ioprio_mq_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
 def ioprio_bfq_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
   return example_job_setup(exp_cgroups)
 
+def ioprio_one_group_bfq_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
+    sjobs = []
+    for sjob in [
+      (0, 'a', '0s', '50s', '1'),
+      (0, 'a', '10s', '70s', '3'),
+      (0, 'a', '20s', '50s', '2')
+    ]:
+      index  = sjob[0]
+      sjob_name   = sjob[1]
+      sjob_start  = sjob[2]
+      sjob_runtime = sjob[3]
+      prioclass = sjob[4]
+      sjob_cgroup_path = f"{exp_cgroups[index].subpath}/fio-workload-{sjob_name}.service"
+      
+      sjob = fio.FioSubJob(sjob_name)
+      sjob.add_options([
+        fio.DelayJobOption(sjob_start),
+        fio.TimedOption('0s', sjob_runtime),
+        fio.RateOption('1500m', '', ''),
+        fio.QDOption(8),
+        fio.RequestSizeOption(f"{64 * 1024}"),
+        fio.ConcurrentWorkerOption(1),
+        fio.CgroupOption(sjob_cgroup_path),
+        fio.AllowedCPUsOption(f'{2+index}'),
+        fio.PrioClassOption(prioclass)
+      ])
+      sjobs.append(sjob)
+    
+      # We need to create service group as well. 
+      cgroups.create_cgroup_service(sjob_cgroup_path)
+        
+    return sjobs
+
 def ioprio_kyber_setup_fio_jobs(exp_cgroups: list[cgroups.Cgroup]):
   return example_job_setup(exp_cgroups)
 
@@ -117,6 +150,16 @@ def mq_configure_cgroups(nvme_device: nvme.NVMeDevice, *_):
 def bfq_configure_cgroups(nvme_device: nvme.NVMeDevice, *_):
     nvme_device.io_scheduler = nvme.IOScheduler.BFQ
 
+def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, *_):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "1")
+
+def bfq3_configure_cgroups(nvme_device: nvme.NVMeDevice, *_):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "0")
+
 def ioprio_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     cgroup_a = exp_cgroups[0]
     cgroup_b = exp_cgroups[1]
@@ -134,6 +177,18 @@ def ioprio_bfq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list
     bfq_configure_cgroups(nvme_device, exp_cgroups)
     ioprio_configure_cgroups(nvme_device, exp_cgroups)
 
+def ioprio_bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    bfq_configure_cgroups(nvme_device, exp_cgroups)
+    ioprio_configure_cgroups(nvme_device, exp_cgroups)
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "1")
+
+def ioprio_bfq3_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    bfq_configure_cgroups(nvme_device, exp_cgroups)
+    ioprio_configure_cgroups(nvme_device, exp_cgroups)
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "0")
+
 def ioprio_kyber_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     nvme_device.io_scheduler = nvme.IOScheduler.KYBER
     ioprio_configure_cgroups(nvme_device, exp_cgroups)
@@ -149,6 +204,34 @@ def io_bfq_weight_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: l
     cgroup_b.iobfqweight = cgroups.IOBFQWeight("default", 1000)
     cgroup_c.iobfqweight = cgroups.IOBFQWeight("default", 100)
 
+def io_bfq2_weight_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+
+    cgroup_a = exp_cgroups[0]
+    cgroup_b = exp_cgroups[1]
+    cgroup_c = exp_cgroups[2]
+
+    cgroup_a.iobfqweight = cgroups.IOBFQWeight("default", 1)
+    cgroup_b.iobfqweight = cgroups.IOBFQWeight("default", 1000)
+    cgroup_c.iobfqweight = cgroups.IOBFQWeight("default", 100)
+
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "1")
+
+def io_bfq3_weight_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+
+    cgroup_a = exp_cgroups[0]
+    cgroup_b = exp_cgroups[1]
+    cgroup_c = exp_cgroups[2]
+
+    cgroup_a.iobfqweight = cgroups.IOBFQWeight("default", 1)
+    cgroup_b.iobfqweight = cgroups.IOBFQWeight("default", 1000)
+    cgroup_c.iobfqweight = cgroups.IOBFQWeight("default", 100)
+
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "0")
+
 def io_latency_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     cgroup_a = exp_cgroups[0]
     cgroup_b = exp_cgroups[1]
@@ -159,7 +242,7 @@ def io_latency_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list
     cgroup_c.iolatency = cgroups.IOLatency(nvme_device.major_minor, 100)
 
 def io_cost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
-    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 89698, 110036, 1063126016, 135560, 130734)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device)
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 100, 95.00, 1000, 50.00, 150.00)
     cgroups.set_iocost(model, qos)
 
@@ -223,11 +306,18 @@ IO_KNOBS = {
     "none": IOKnob("none", none_configure_cgroups, none_setup_fio_jobs),
     "mq": IOKnob("mq", mq_configure_cgroups, mq_setup_fio_jobs),
     "bfq": IOKnob("bfq", bfq_configure_cgroups, bfq_setup_fio_jobs),
+    "bfq2": IOKnob("bfq2", bfq2_configure_cgroups, bfq_setup_fio_jobs),
+    "bfq3": IOKnob("bfq3", bfq3_configure_cgroups, bfq_setup_fio_jobs),
     "iomax": IOKnob("io.max", iomax_configure_cgroups, iomax_setup_fio_jobs),
     "iopriomq": IOKnob("io.prio_class+mq", ioprio_mq_configure_cgroups, ioprio_mq_setup_fio_jobs),
     "iopriobfq": IOKnob("io.prio_class+bfq", ioprio_bfq_configure_cgroups, ioprio_bfq_setup_fio_jobs),
+    "iopriobfq2": IOKnob("io.prio_class+bfq2", ioprio_bfq2_configure_cgroups, ioprio_bfq_setup_fio_jobs),
+    "iopriobfq2_2": IOKnob("io.prio_class+bfq2_2", ioprio_bfq2_configure_cgroups, ioprio_one_group_bfq_setup_fio_jobs),
+    "iopriobfq3": IOKnob("io.prio_class+bfq3", ioprio_bfq3_configure_cgroups, ioprio_bfq_setup_fio_jobs),
     "iopriokyber": IOKnob("io.prio_class+kyber", ioprio_kyber_configure_cgroups, ioprio_kyber_setup_fio_jobs),
     "iobfqweight": IOKnob("io.bfq.weight", io_bfq_weight_configure_cgroups, io_bfq_weight_setup_fio_jobs),
+    "iobfq2weight": IOKnob("io.bfq2.weight", io_bfq2_weight_configure_cgroups, io_bfq_weight_setup_fio_jobs),
+    "iobfq3weight": IOKnob("io.bfq3.weight", io_bfq3_weight_configure_cgroups, io_bfq_weight_setup_fio_jobs),
     "iolatency": IOKnob("io.latency", io_latency_configure_cgroups, io_latency_setup_fio_jobs),
     "iocost": IOKnob("io.cost", io_cost_configure_cgroups, io_cost_setup_fio_jobs),
     "iocostw": IOKnob("io.cost+weights", io_costw_configure_cgroups, io_cost_setup_fio_jobs)

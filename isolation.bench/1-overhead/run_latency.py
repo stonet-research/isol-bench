@@ -33,10 +33,21 @@ def iomax_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: li
 def iomax_inactive_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     major_minor = nvme_device.major_minor
     for group in exp_cgroups:
+        # Unreachable on our SSDs
         group.iomax = cgroups.IOMax(major_minor, 1024 * 1024 * 5000, 1024 * 1024 * 5000, 10_000_000, 10_000_000)
 
 def bfq_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+
+def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "8")
+
+def bfq3_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "0")
 
 def mq_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     nvme_device.io_scheduler = nvme.IOScheduler.MQ_DEADLINE
@@ -52,7 +63,7 @@ def iolat_inactive_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: 
         group.iolatency = cgroups.IOLatency(major_minor, 1000000)
 
 def iocost_active_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
-    model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840, 89698, 110036, 1063126016, 135560, 130734)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device) 
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1000000, 95.00, 1000000, 50.00, 150.00)
     cgroups.set_iocost(model, qos)
 
@@ -100,6 +111,8 @@ def setup_jobs(device_name: str, exp_cgroups: list[cgroups.Cgroup], numjobs: int
 IO_KNOBS = {
     "none": IOKnob("none", none_configure_cgroups, none_configure_cgroups),
     "bfq": IOKnob("bfq", bfq_active_configure_cgroups, bfq_active_configure_cgroups),
+    "bfq2": IOKnob("bfq2", bfq2_configure_cgroups, bfq2_configure_cgroups),
+    "bfq3": IOKnob("bfq3", bfq3_configure_cgroups, bfq3_configure_cgroups),
     "mq": IOKnob("mq", mq_active_configure_cgroups, mq_active_configure_cgroups),
     "iomax": IOKnob("iomax", iomax_active_configure_cgroups, iomax_inactive_configure_cgroups),
     "iolat": IOKnob("iolat", iolat_active_configure_cgroups, iolat_inactive_configure_cgroups),

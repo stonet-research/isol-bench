@@ -84,11 +84,26 @@ def plot_ioprio_mq_example():
 def plot_ioprio_bfq_example():
     plot_ioprio('bfq')
 
+def plot_ioprio_bfq2_example():
+    plot_ioprio('bfq2')
+
+def plot_ioprio_one_group_bfq2_example():
+    plot_ioprio('bfq2_2')
+
+def plot_ioprio_bfq3_example():
+    plot_ioprio('bfq3')
+
 def plot_ioprio_kyber_example():
     plot_ioprio('kyber')
 
 def plot_iowbfq_example():
     example_plot('io.bfq.weight', 'io.bfq.weight', ['A - io.bfq.weight @ 1000', 'B - io.bfq.weight @ 1', 'C - io.bfq.weight @ 100'])
+
+def plot_iowbfq2_example():
+    example_plot('io.bfq2.weight', 'io.bfq2.weight', ['A - io.bfq.weight @ 1000', 'B - io.bfq.weight @ 1', 'C - io.bfq.weight @ 100'])
+
+def plot_iowbfq3_example():
+    example_plot('io.bfq3.weight', 'io.bfq3.weight', ['A - io.bfq.weight @ 1000', 'B - io.bfq.weight @ 1', 'C - io.bfq.weight @ 100'])
 
 def plot_iolatency_example():
     example_plot('io.latency', 'io.latency', ['A - io.latency @ 20us', 'B - io.latency @ 1000us', 'C - io.latency @ 100us'])
@@ -108,15 +123,29 @@ def plot_mq():
 def plot_bfq():
     example_plot('bfq', 'bfq', ['A', 'B', 'C'])
 
+def plot_bfq2():
+    example_plot('bfq2', 'bfq2', ['A', 'B', 'C'])
+
+def plot_bfq3():
+    example_plot('bfq3', 'bfq3', ['A', 'B', 'C'])
+
+
 PLOT_OPTIONS = {
     'none': plot_empty,
     'mq': plot_mq,
     'bfq': plot_bfq,
+    'bfq2': plot_bfq2,
+    'bfq3': plot_bfq3,
     'iomax': plot_iomax_example,
     'iopriomq': plot_ioprio_mq_example,
     'iopriobfq': plot_ioprio_bfq_example,
+    'iopriobfq2': plot_ioprio_bfq2_example,
+    'iopriobfq2_2': plot_ioprio_one_group_bfq2_example,
+    'iopriobfq3': plot_ioprio_bfq3_example,
     'iopriokyber': plot_ioprio_kyber_example,
     'iobfqweight': plot_iowbfq_example,
+    'iobfq2weight': plot_iowbfq2_example,
+    'iobfq3weight': plot_iowbfq3_example,
     'iolatency': plot_iolatency_example,
     'iocost': plot_iocost_example,
     'iocostw': plot_iocostw_example 

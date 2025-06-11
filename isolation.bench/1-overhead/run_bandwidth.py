@@ -16,7 +16,7 @@ EXPERIMENT_CGROUP_PATH_PREAMBLE=f"example-workload"
 EXPERIMENT_MAX_TENANT_COUNT=256
 
 CORES = '1-10'
-NUMJOBS = [1, 3, 5, 7, 9, 11, 13, 15, 17]
+NUMJOBS = list(range(1, 65, 2))
 NUMDISKS = [1, 2, 4, 7]
 
 @dataclass
@@ -30,11 +30,23 @@ def none_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgrou
 def iomax_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     major_minor = nvme_device.major_minor
     for group in exp_cgroups:
+        # Unachievable on any SSD we tested
         group.iomax = cgroups.IOMax(major_minor, 1024 * 1024 * 5000, 1024 * 1024 * 5000, 10_000_000, 10_000_000)
-        #group.iomax = cgroups.IOMax(major_minor, 1024 * 1024 * 100, 1024 * 1024 * 100, 10_000, 10_000)
 
 def bfq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "1")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "8")
+
+def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "8")
+
+def bfq3_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    nvme_device.io_scheduler = nvme.IOScheduler.BFQ
+    nvme_device.set_ioscheduler_parameter("low_latency", "0")
+    nvme_device.set_ioscheduler_parameter("slice_idle", "0")
 
 def mq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     nvme_device.io_scheduler = nvme.IOScheduler.MQ_DEADLINE
@@ -42,14 +54,13 @@ def mq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups
 def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
     major_minor = nvme_device.major_minor
     for group in exp_cgroups:
-        group.iolatency = cgroups.IOLatency(major_minor, 1000000)
+        # Unreachable target, but since the target is equal no bandwidth will be sacrificed (just CPU)
         group.iolatency = cgroups.IOLatency(major_minor, 10)
 
 def iocost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup]):
+    # Unachievable cost
     model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 1024*1024*1024*10, 10_000_000, 10_000_000, 1024*1024*1024*10, 10_000_000, 10_000_000)
-    # model = cgroups.IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840//100, 89698//100, 110036//100, 1063126016//100, 135560//100, 130734//100)
     qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 1_000_000, 95.00, 1_000_000, 50.00, 150.00)
-    #qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 95.00, 100, 95.00, 100, 50.00, 150.00)
     cgroups.set_iocost(model, qos)
 
 def setup_cgroups() -> list[cgroups.Cgroup]:
@@ -97,6 +108,8 @@ def setup_jobs(device_names: list[str], exp_cgroups: list[cgroups.Cgroup], numjo
 IO_KNOBS = {
     "none": IOKnob("none", none_configure_cgroups),
     "bfq": IOKnob("bfq", bfq_configure_cgroups),
+    "bfq2": IOKnob("bfq2", bfq2_configure_cgroups),
+    "bfq3": IOKnob("bfq3", bfq3_configure_cgroups),
     "mq": IOKnob("mq", mq_configure_cgroups),
     "iomax": IOKnob("iomax", iomax_configure_cgroups),
     "iolat": IOKnob("iolat", iolat_configure_cgroups),

@@ -54,6 +54,15 @@ class NVMeDevice(object):
             return f.readline().strip().replace(" ", "")
 
     @property
+    def isoptane(self) -> str:
+        return self.eui == "0000000000000000"
+
+    @property
+    def model(self) -> str:
+        with open(f"{self.NVME_SYSPATH}/{self.devicename}/device/model", "r") as f:
+            return f.readline().strip()
+
+    @property
     def nsid(self) -> int:
         with open(f"{self.NVME_SYSPATH}/{self.devicename}/nsid", "r") as f:
             return int(f.readline())
@@ -94,6 +103,9 @@ class NVMeDevice(object):
     def io_scheduler(self):
         self.io_scheduler = IOScheduler.NONE
 
+    def set_ioscheduler_parameter(self, param: str, val:str):
+        set_sysfs(f"{self.NVME_SYSPATH}/{self.devicename}/queue/iosched/{param}", val)
+
 def __nvme_cmd(cmd):
     return exec_cmd(f'sudo nvme {cmd}')
 
@@ -107,6 +119,9 @@ def nvme_list() -> list[NVMeDevice]:
         return [NVMeDevice(__nvme_name_short(nvme['DevicePath'])) for nvme in nvmes_json['Devices']]
     except:
         return []
+
+def nvme_format(nvme_device: NVMeDevice):
+    __nvme_cmd(f"format -s 2 {nvme_device.syspath}")
 
 def find_nvme_with_eui(eui: str) -> NVMeDevice:
     if len(eui) != 16:

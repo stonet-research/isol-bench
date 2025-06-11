@@ -267,7 +267,7 @@ class Cgroup(object):
         if self.isroot or not self.parent.iocontrol_enabled:
             raise ValueError("iocontrol not available for this group")
         if type(ioweight_val.weight) != str and (int(ioweight_val.weight) < 1 or int(ioweight_val.weight) > 10_000):
-            raise ValueError("Invalid weight")
+            raise ValueError(f"Invalid weight {ioweight_val.to_str()}")
         set_sysfs(f"{self.cgroup_path}/io.weight", ioweight_val.to_str())    
 
     @ioweight.deleter
@@ -292,7 +292,7 @@ class Cgroup(object):
         if self.isroot or not self.parent.iocontrol_enabled:
             raise ValueError("iocontrol not available for this group")
         if type(iobfqweight_val.weight) != str and (int(iobfqweight_val.weight) < 1 or int(iobfqweight_val.weight) > 1_000):
-            raise ValueError("Invalid weight")
+            raise ValueError(f"Invalid weight {iobfqweight_val.to_str()}")
         set_sysfs(f"{self.cgroup_path}/io.bfq.weight", iobfqweight_val.to_str())    
 
     @iobfqweight.deleter
@@ -412,3 +412,14 @@ def disable_iocontrol(path = cgroup_syspath):
     disable_iocontrol_with_groups(
         [Cgroup(f"{spath}") for spath in list_cgroups(path)]
     )
+
+def get_iocostmodel_from_nvme_model(nvme_device, unreachable = False):
+    model = None
+    amplifier = 10 if unreachable else 1
+    if "Samsung SSD 980 PRO" in nvme_device.model:
+        model = IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840 * amplifier, 786432 * amplifier, 786432 * amplifier, 1063126016 * amplifier, 135560 * amplifier, 130734 * amplifier)
+    elif "INTEL SSDPE21D280GA" in nvme_device.model:
+        model = IOCostModel(nvme_device.major_minor, 'user', 'linear', 2413821952 * amplifier, 589312 * amplifier, 589312 * amplifier, 2413821952 * amplifier, 589312 * amplifier, 589312 * amplifier)
+    else:
+        raise ValueError("Model is not known, please add your own")
+    return model

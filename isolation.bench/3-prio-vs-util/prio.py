@@ -23,11 +23,13 @@ from util_sysfs import nvme as nvme
 from util_sysfs.bench import *
 from util_sysfs.perf import *
 
+EXPERIMENT_CGROUP_LC_PREAMBLE=f"lc-workload"
+EXPERIMENT_CGROUP_BE_PREAMBLE=f"be-workload"
 EXPERIMENT_CGROUP_PATH_PREAMBLE=f"example-workload"
 EXPERIMENT_MAX_TENANT_COUNT=256
 
 CORES = '1-10'
-NUMJOBS = 8 # + 1 # +1 to force 1 LC-tenants
+NUMJOBS = 8 + 1 # +1 to force 1 LC-tenants
 
 @dataclass
 class IOKnob:
@@ -48,21 +50,41 @@ def mq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups
 
     l = [cgroups.IOPriorityClass.IDLE, cgroups.IOPriorityClass.RESTRICT_TO_BE, cgroups.IOPriorityClass.PROMOTE_TO_RT]
     o = list(itertools.product(l, l))
-    p = o[point]
+    p = o[point % 9]
 
     exp_cgroups[0].ioprio = p[0]
     for i in range(1, len(exp_cgroups)):
         exp_cgroups[i].ioprio = p[1]
 
-def iomax_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
-    total_weight = sum(weights) 
+    print(f"LC={p[0]} other={p[1]}%")
+
+def mq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
+    nvme_device.io_scheduler = nvme.IOScheduler.MQ_DEADLINE
+    nvme_device.set_ioscheduler_parameter("read_expire", "0")
+    nvme_device.set_ioscheduler_parameter("fifo_batch", "1")
+    nvme_device.set_ioscheduler_parameter("front_merges", "0")
+
+    l = [cgroups.IOPriorityClass.IDLE, cgroups.IOPriorityClass.RESTRICT_TO_BE, cgroups.IOPriorityClass.PROMOTE_TO_RT]
+    o = list(itertools.product(l, l))
+    p = o[point % 9]
+
+    exp_cgroups[0].ioprio = p[0]
+    for i in range(1, len(exp_cgroups)):
+        exp_cgroups[i].ioprio = p[1]
+
+    print(f"LC={p[0]} other={p[1]}%")
+
+def iomax_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point):
+    max_ios = [50, 100, 200, 300, 400, 500, 1000, 1500, 2000, 2300]
+    max_io = max_ios[point % len(max_ios)]
+
+    print(f"set BE-app io.max = {max_io} MiB/s")
 
     major_minor = nvme_device.major_minor
     for index, group in enumerate(exp_cgroups):
-        if index >= len(weights):
-            break
-        weight = weights[index] / total_weight
-        group.iomax = cgroups.IOMax(major_minor, int(weight * max_bw), int(weight * max_bw), 10_000_000, 10_000_000)
+        if index == 0:
+            continue
+        group.iomax = cgroups.IOMax(major_minor, int(1024 * 1024 * max_io), int(1024 * 1024 * max_io), 10_000_000, 10_000_000)
 
 def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
     nvme_device.io_scheduler = nvme.IOScheduler.BFQ
@@ -70,8 +92,10 @@ def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgrou
     nvme_device.set_ioscheduler_parameter("slice_idle", "1")
 
     weights = [1, 2, 5, 10, 100, 1000]
+    weight = weights[point]
+    print(f"Using io.bfq.weight={weight}")
 
-    exp_cgroups[0].iobfqweight = cgroups.IOBFQWeight("default", weights[point])
+    exp_cgroups[0].iobfqweight = cgroups.IOBFQWeight("default", weight)
     for i in range(1, len(exp_cgroups)):
         exp_cgroups[i].iobfqweight = cgroups.IOBFQWeight("default", 1)
 
@@ -79,26 +103,47 @@ def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgrou
 def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
     major_minor = nvme_device.major_minor
 
-    lats = [10, 70, 100, 200, 100]
-    exp_cgroups[0].iolatency = cgroups.IOLatency(major_minor, lats[point])
+    lats = [10, 70, 100, 200, 500]
+    lat = lats[point % len(lats)]
+    print(f"Using latency target={lat}")
+    exp_cgroups[0].iolatency = cgroups.IOLatency(major_minor, lat)
 
 def iocost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
-    read_targets = [1_000_000, 1_000, 100, 50, 10]
-    read_target =  read_targets[4 - (point // 7)]  
+    #min_scalings = [10.0, 50.0]
+    #min_scaling = min_scalings[point // 27]
+    #model_amplifiers = [1/2, 1/8, 1]
+    #model_amplifier = model_amplifiers[(point % 27) // 9]
+    #read_targets = [1_000, 100, 25]
+    #read_target =  read_targets[2 - ((point % 9) // 3)]  
+    #weights = [1, 10, 10000]
+    #weight = weights[point % 3]
+
+    # ?
+    min_scalings = [1, 25, 50, 75, 100]
+    min_scaling = min_scalings[point // 9]
+    model_amplifier = 1
+    read_targets = [25, 100, 1_000]
+    read_target = read_targets[(point // 3) % 3]
+    weights = [1/8, 1, 10_000]
+    weight = weights[point % 3]
+    lc_weight = int(weight if weight >= 1 else 1)
+    be_weight = int(1 if weight >= 1 else (1 // weight))
 
     # We focus on bandwidth here, so sacrifice latency, we do not need it as a sign of congestion as it complicates matters 
-    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 99.00, read_target, 95.00, 1_000_000, 50.00, 150.00)
-    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device, False)
+    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 99.00, read_target, 95.00, 1_000_000, min_scaling, 150.00)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device, False, model_amplifier)
     cgroups.set_iocost(model, qos)
 
-    weights = [1, 2, 5, 10, 100, 1000, 10000]
 
-    exp_cgroups[0].ioweight = cgroups.IOWeight("default", weights[point])
+    print(f"Using weight={lc_weight}/{be_weight} model_amplifier={model_amplifier} read_target_us={read_target} min_scaling={min_scaling}%")
+    exp_cgroups[0].ioweight = cgroups.IOWeight("default", lc_weight)
     for i in range(1, len(exp_cgroups)):
-        exp_cgroups[i].ioweight = cgroups.IOWeight("default", 1)
+        exp_cgroups[i].ioweight = cgroups.IOWeight("default", be_weight)
 
 def setup_cgroups() -> list[cgroups.Cgroup]:
-    return [cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_PATH_PREAMBLE}-{i}.slice") for i in range(0,EXPERIMENT_MAX_TENANT_COUNT)]
+    lc_g = cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_LC_PREAMBLE}.slice")
+    be_g = cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_BE_PREAMBLE}.slice")
+    return [lc_g, be_g]
 
 def setup_gjob(device_name: str) -> fio.FioGlobalJob:
     gjob = fio.FioGlobalJob()
@@ -121,7 +166,7 @@ def setup_sjobs(exp_cgroups: list[cgroups.Cgroup], numjobs: int) -> list[fio.Fio
     # Create subjobs
     sjobs = []
     for i in range(numjobs):
-        sjob_cgroup_path = f"{exp_cgroups[i].subpath}/fio-workload.service"
+        sjob_cgroup_path = f"{exp_cgroups[0].subpath if i == 0 else exp_cgroups[1].subpath}/fio-workload-{i}.service"
         # We need to create service group as well. 
         cgroups.create_cgroup_service(sjob_cgroup_path)
 
@@ -136,10 +181,11 @@ def setup_sjobs(exp_cgroups: list[cgroups.Cgroup], numjobs: int) -> list[fio.Fio
 IO_KNOBS = {
     "none": IOKnob("none", 1, none_configure_cgroups),
     "bfq2": IOKnob("bfq2", 6, bfq2_configure_cgroups),
-    "mq": IOKnob("mq", 9, mq_configure_cgroups),
-    "iomax": IOKnob("iomax", 0, iomax_configure_cgroups),
-    "iolat": IOKnob("iolat", 5, iolat_configure_cgroups),
-    "iocost": IOKnob("iocost", 35, iocost_configure_cgroups),
+    "mq": IOKnob("mq", 27, mq_configure_cgroups),
+    "mq2": IOKnob("mq2", 27, mq2_configure_cgroups),
+    "iomax": IOKnob("iomax", 30, iomax_configure_cgroups),
+    "iolat": IOKnob("iolat", 5*3, iolat_configure_cgroups),
+    "iocost": IOKnob("iocost", 45, iocost_configure_cgroups), # 54
 }
 
 def tapps_job(sjob, i):
@@ -152,9 +198,23 @@ def tapps_job(sjob, i):
     ])
     return sjob
 
+def tapps_job_joined(sjob, i):
+    qoption =  fio.QDOption(256)
+    sjob.add_options([
+        qoption
+    ])
+    return sjob
+
 EXPERIMENTS = {
     # General random read
     "tapps": Experiment("tapps", tapps_job),
+    "tapps_joined": Experiment("tapps_joined", tapps_job_joined),
+    # RQ-size
+
+    # Access pattern
+
+    # Scalability
+
 }
 
 def find_isolation(knobs_to_test: list[IOKnob]):
@@ -194,7 +254,7 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
 
         for config_point in range(knob.points):
 
-            print(f"Configuring experiment [{experiment.name}, {config_point}] on {nvme_device.syspath}")        
+            print(f"Configuring experiment [{experiment.name}, {config_point}/{knob.points}] on {nvme_device.syspath}")        
             cgroups.disable_iocontrol_with_groups(exp_cgroups)
             del nvme_device.io_scheduler
             
@@ -212,7 +272,7 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
                 app = experiment.change_jobs(app, i)              
                 gjob.add_job(app) 
                 # .
-                sjob_cgroup_path = f"{exp_cgroups[i].subpath}/fio-workload.service"
+                sjob_cgroup_path = f"{exp_cgroups[0].subpath if i == 0 else exp_cgroups[1].subpath}/fio-workload-{i}.service"
                 cgroups.create_cgroup_service(sjob_cgroup_path)
             job_gen.generate_job_file(f'./tmp/{experiment.name}-{knob.name}-{NUMJOBS}', gjob)
 
@@ -222,6 +282,14 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
                 f'./tmp/{experiment.name}-{knob.name}-{NUMJOBS}',\
                 f'./{outdir}/{experiment.name}-{knob.name}-{NUMJOBS}-{config_point}.json')
             fioproc.wait()
+
+            with open(f'./{outdir}/{experiment.name}-{knob.name}-{NUMJOBS}-{config_point}.json', 'r') as f:
+                js = json.load(f)
+                bws = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
+                bwsum = sum(bws) / (1024 * 1024)
+                bw1 = bws[0] / (1024 * 1023) 
+                p99 = js['jobs'][0]['read']['clat_ns']['percentile']['99.000000'] / 1000
+                print(f"LC-app achieved {p99}us @ {bw1} GiB/s. Aggregated BW of all workloads is {bwsum} GiB/s")
 
 
 def run_experiments(experiments_to_run: list[Experiment], knobs_to_test: list[IOKnob]):

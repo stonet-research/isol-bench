@@ -87,6 +87,9 @@ def plot_ioprio_bfq_example():
 def plot_ioprio_bfq2_example():
     plot_ioprio('bfq2')
 
+def plot_ioprio_one_group_bfq2_example():
+    plot_ioprio('bfq2_2')
+
 def plot_ioprio_bfq3_example():
     plot_ioprio('bfq3')
 
@@ -136,7 +139,8 @@ PLOT_OPTIONS = {
     'iomax': plot_iomax_example,
     'iopriomq': plot_ioprio_mq_example,
     'iopriobfq': plot_ioprio_bfq_example,
-    'iopriobfq': plot_ioprio_bfq2_example,
+    'iopriobfq2': plot_ioprio_bfq2_example,
+    'iopriobfq2_2': plot_ioprio_one_group_bfq2_example,
     'iopriobfq3': plot_ioprio_bfq3_example,
     'iopriokyber': plot_ioprio_kyber_example,
     'iobfqweight': plot_iowbfq_example,

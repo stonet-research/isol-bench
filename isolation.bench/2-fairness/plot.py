@@ -74,7 +74,7 @@ for experiment, weighted in [
     ]:
     print(f"EXPERIMENT {experiment}")
     print('----------------------------------------------------------')
-    numjobss = [16, 32, 64, 128, 256] if not "write" in experiment else [256]
+    numjobss = [8, 16, 32, 64, 128, 256] if not "write" in experiment else [256]
     if "unsaturated" in experiment:
         numjobss = [2, 4]
     for numjobs in numjobss:
@@ -132,9 +132,11 @@ for experiment, weighted in [
             fig, ax = plt.subplots()
             colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA]
         
-            plt.bar(LABELS, yy, yerr=yye, color=colors)
+            plt.bar(LABELS, yy, yerr=yye, color=colors, linewidth=1, edgecolor='black')
 
             plt.ylim(0, 1)
+            plt.xlim(-1, 6)
+            plt.hlines(y=1/numjobs, xmin=-1, xmax=10000, linewidth=2, color='r')
             #plt.xlabel("Knob")
             plt.ylabel("Jains fairness")
             plt.grid(axis='y')

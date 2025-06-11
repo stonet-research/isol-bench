@@ -109,6 +109,28 @@ def mq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups
             c = cgroups.IOPriorityClass.PROMOTE_TO_RT
         exp_cgroups[i].ioprio = c
 
+
+def mq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
+    nvme_device.io_scheduler = nvme.IOScheduler.MQ_DEADLINE
+    nvme_device.set_ioscheduler_parameter("read_expire", "0")
+    #nvme_device.set_ioscheduler_parameter("prio_aging_expire", "0")
+
+    # Uniform
+    if (sum(weights) == len(weights)):
+        return 
+
+    # I have no idea if this is a good idea, but lets do it
+    w_threshold = sum(weights) / 3
+    for i, w in enumerate(weights): 
+        c = None
+        if w < w_threshold:
+            c = cgroups.IOPriorityClass.IDLE
+        elif w < 2 * w_threshold:
+            c = cgroups.IOPriorityClass.RESTRICT_TO_BE
+        else:   
+            c = cgroups.IOPriorityClass.PROMOTE_TO_RT
+        exp_cgroups[i].ioprio = c
+
 def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], max_bw, weights):
     major_minor = nvme_device.major_minor
 
@@ -285,6 +307,17 @@ def requestsize_job(sjob, saturation_point, numjobs, i, single_job_bw):
     bw_rate = single_job_bw
     roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
     soption = fio.RequestSizeOption(["4096", "65536"][i % 2])
+    sjob.add_options([
+        roption,
+        soption
+    ])
+    return (sjob, bw_rate)
+
+def requestsize_max_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][i % 2])
     sjob.add_options([
         roption,
         soption
@@ -573,6 +606,7 @@ IO_KNOBS = {
     "bfq2": IOKnob("bfq2", bfq2_configure_cgroups),
     "bfq3": IOKnob("bfq3", bfq3_configure_cgroups),
     "mq": IOKnob("mq", mq_configure_cgroups),
+    "mq2": IOKnob("mq2", mq2_configure_cgroups),
     "iomax": IOKnob("iomax", iomax_configure_cgroups),
     "iolat": IOKnob("iolat", iolat_configure_cgroups),
     "iocost": IOKnob("iocost", iocost_configure_cgroups),
@@ -590,6 +624,7 @@ EXPERIMENTS = {
     # Random read rq size impact
     "requestsize": Experiment("requestsize", True, False, requestsize_job),
     "requestsizew": Experiment("requestsizew", True, True, requestsize_job),
+    "requestsizemax": Experiment("requestsizemax", True, False, requestsize_max_job),
     "requestsizelarge": Experiment("requestsizelarge", True, False, requestsize_large_job),
     # crashes -- "requestsizesplit": Experiment("requestsizesplit", True, False, requestsize_split_job),
     # crashes -- "requestsizerange": Experiment("requestsizerange", True, False, requestsize_range_job),
@@ -646,7 +681,7 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
         print(f"Experiment [{knob.name}]") 
         print(f"___________________________________")
 
-        print(f"Configuring experiment [{experiment.name}]")        
+        print(f"Configuring experiment [{experiment.name}] on {nvme_device.syspath}")        
         cgroups.disable_iocontrol_with_groups(exp_cgroups)
         del nvme_device.io_scheduler
         
@@ -664,10 +699,10 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
         if NUMJOBS_FORCED:
             njs = NUMJOBS
         for numjobs in njs:
-            if numjobs < min_num_jobs and not "unsaturated" in experiment.name:
+            if not NUMJOBS_FORCED and numjobs < min_num_jobs and not "unsaturated" in experiment.name:
                 print(f"Ignoring numjobs={numjobs} as it does not saturate")
                 continue
-            elif numjobs >= min_num_jobs and "unsaturated" in experiment.name:
+            elif not NUMJOBS_FORCED and numjobs >= min_num_jobs and "unsaturated" in experiment.name:
                 print(f"Ignoring numjobs={numjobs} as it saturates")
                 continue
             print(f"Generating experiment [numjobs={numjobs}]")        

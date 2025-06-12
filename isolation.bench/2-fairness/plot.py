@@ -83,9 +83,12 @@ for experiment, weighted in [
         ye = []
         yp = []
         ype = []
+        yb = []
+        ybe = []
         for knob in KNOBS:
             suby = []
             subyp = []
+            subyb = []
             for it in list(range(10)):
                 filename = f'./out/{nvme_device.eui}/{experiment}-{knob}-{numjobs}-{it}.json'
                 try:
@@ -115,42 +118,59 @@ for experiment, weighted in [
                     jains2 = jains_fairness_index_weighted(vs, weights)
                     suby.append(jains2)
                     bwsum = sum(vs) / (1024 * 1024)
+                    subyb.append(bwsum)
                 except:
                     pass                
             jains = avg(subyp)
             jains2 = avg(suby)
+            bwavg = avg(subyb)
             yp.append(jains)
             ype.append(statistics.stdev(subyp) if len(subyp) > 1 else 0)
             y.append(jains2)
             ye.append(statistics.stdev(suby) if len(suby) > 1 else 0)
+            yb.append(bwavg)
+            ybe.append(statistics.stdev(subyb) if len(subyb) > 1 else 0)
             if jains:
                 print(f"    {knob} Jains fairness: {jains} (PS) or {jains2} (LOAD) @ BW sum {bwsum} GiB/s")
             else:
                 print(f"    {knob} Jains fairness: - (PS) or - (LOAD) @ BW sum - GiB/s [not measured]")
         
         for yy, yye, name in [(y, ye, "load"), (yp, ype, "proportional")]:
-            fig, ax = plt.subplots()
-            colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA]
-        
-            plt.bar(LABELS, yy, yerr=yye, color=colors, linewidth=1, edgecolor='black')
+            for jains_only in [True, False]:
+                # Plot jains only
+                fig, ax = plt.subplots()
+                colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA]
+            
+                plt.bar(LABELS, yy, yerr=yye, color=colors, linewidth=1, edgecolor='black')
 
-            plt.ylim(0, 1)
-            plt.xlim(-1, 6)
-            plt.hlines(y=1/numjobs, xmin=-1, xmax=10000, linewidth=2, color='r')
-            #plt.xlabel("Knob")
-            plt.ylabel("Jains fairness")
-            plt.grid(axis='y')
-            plt.xticks(rotation=45, ha='right')
+                plt.ylim(0, 1)
+                plt.xlim(-1, 6)
+                if jains_only:
+                    plt.hlines(y=1/numjobs, xmin=-1, xmax=10000, linewidth=2, color='r')
+                else:
+                    # Plot jains + BW
+                    ax2 = ax.twinx()
+                    ax2.errorbar(list(range(len(yb))), yb, yerr=ybe, color='gray', linewidth=4, marker='o', markersize=8)
+                    ax2.set_ylabel("Aggregated Bandwidth (GiB/s)")
+                    ax2.set_ylim(0, 3)
 
-            # Save plot       
-            os.makedirs(f'./plots', exist_ok = True)
-            fig.savefig(f'./plots/{experiment}-{numjobs}-{name}.pdf', bbox_inches="tight")
-            print(experiment, numjobs, name)
+                #plt.xlabel("Knob")
+                ax.set_ylabel("Jain's fairness index")
+                plt.grid(axis='y')
+                ax.set_xticklabels(LABELS, rotation=45, ha='right')
 
-            if name == "load" and experiment in ["saturated", "saturatedw", "requestsizelarge"] and numjobs == 16:
-                yo.append(yy)
-                yoe.append(yye)
-
+                # Save plot       
+                os.makedirs(f'./plots', exist_ok = True)
+                if (jains_only):
+                    fig.savefig(f'./plots/{experiment}-{numjobs}-{name}.pdf', bbox_inches="tight")
+                    print(experiment, numjobs, name)
+                    # merged stats 
+                    if name == "load" and experiment in ["saturated", "saturatedw", "requestsizelarge"] and numjobs == 16:
+                        yo.append(yy)
+                        yoe.append(yye)
+                else:
+                    fig.savefig(f'./plots/bw-{experiment}-{numjobs}-{name}.pdf', bbox_inches="tight")
+                
 fig, axes = plt.subplots(1, 3, sharex=True, sharey=True)
 colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA]
 

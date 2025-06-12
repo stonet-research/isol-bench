@@ -91,13 +91,15 @@ def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgrou
     nvme_device.set_ioscheduler_parameter("low_latency", "0")
     nvme_device.set_ioscheduler_parameter("slice_idle", "1")
 
-    weights = [1, 2, 5, 10, 100, 1000]
+    weights = [1/32, 1/8, 1, 2, 5, 10, 100, 1000]
     weight = weights[point]
-    print(f"Using io.bfq.weight={weight}")
+    lc_weight = int(weight if weight >= 1 else 1)
+    be_weight = int(1 if weight >= 1 else (1 // weight))
+    print(f"Using io.bfq.weight={lc_weight}/{be_weight}")
 
-    exp_cgroups[0].iobfqweight = cgroups.IOBFQWeight("default", weight)
+    exp_cgroups[0].iobfqweight = cgroups.IOBFQWeight("default", lc_weight)
     for i in range(1, len(exp_cgroups)):
-        exp_cgroups[i].iobfqweight = cgroups.IOBFQWeight("default", 1)
+        exp_cgroups[i].iobfqweight = cgroups.IOBFQWeight("default", be_weight)
 
 
 def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
@@ -180,7 +182,7 @@ def setup_sjobs(exp_cgroups: list[cgroups.Cgroup], numjobs: int) -> list[fio.Fio
 
 IO_KNOBS = {
     "none": IOKnob("none", 1, none_configure_cgroups),
-    "bfq2": IOKnob("bfq2", 6, bfq2_configure_cgroups),
+    "bfq2": IOKnob("bfq2", 16, bfq2_configure_cgroups),
     "mq": IOKnob("mq", 27, mq_configure_cgroups),
     "mq2": IOKnob("mq2", 27, mq2_configure_cgroups),
     "iomax": IOKnob("iomax", 30, iomax_configure_cgroups),
@@ -205,16 +207,56 @@ def tapps_job_joined(sjob, i):
     ])
     return sjob
 
+def rq_job(sjob, i):
+    if i == 0:
+        return sjob 
+    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][i % 2])
+    qoption =  fio.QDOption(256)
+    sjob.add_options([
+        qoption,
+        soption
+    ])
+    return sjob
+
+def rq_job_joined(sjob, i):
+    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][i % 2])
+    qoption =  fio.QDOption(256)
+    sjob.add_options([
+        qoption,
+        soption
+    ])
+    return sjob
+
+def access_job(sjob, i):
+    if i == 0:
+        return sjob 
+    joption = fio.JobOption(fio.JobWorkload.SEQ_READ)
+    qoption =  fio.QDOption(256)
+    sjob.add_options([
+        qoption,
+        joption
+    ])
+    return sjob
+
+def access_job_joined(sjob, i):
+    joption = fio.JobOption(fio.JobWorkload.SEQ_READ)
+    qoption =  fio.QDOption(256)
+    sjob.add_options([
+        qoption,
+        joption
+    ])
+    return sjob
+
 EXPERIMENTS = {
     # General random read
     "tapps": Experiment("tapps", tapps_job),
     "tapps_joined": Experiment("tapps_joined", tapps_job_joined),
     # RQ-size
-
+    "rq": Experiment("rq", rq_job),
+    "rq_joined": Experiment("rq_joined", rq_job_joined),
     # Access pattern
-
-    # Scalability
-
+    "access": Experiment("access", access_job),
+    "access_joined": Experiment("access_joined", access_job_joined), 
 }
 
 def find_isolation(knobs_to_test: list[IOKnob]):
@@ -253,44 +295,45 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
         print(f"___________________________________")
 
         for config_point in range(knob.points):
+            try:
+                print(f"Configuring experiment [{experiment.name}, {config_point}/{knob.points}] on {nvme_device.syspath}")        
+                cgroups.disable_iocontrol_with_groups(exp_cgroups)
+                del nvme_device.io_scheduler
+                
+                for group in exp_cgroups:
+                    group.force_cpuset_cpus(CORES)
+                knob.configure_cgroups(nvme_device, exp_cgroups, config_point)
 
-            print(f"Configuring experiment [{experiment.name}, {config_point}/{knob.points}] on {nvme_device.syspath}")        
-            cgroups.disable_iocontrol_with_groups(exp_cgroups)
-            del nvme_device.io_scheduler
-            
-            for group in exp_cgroups:
-                group.force_cpuset_cpus(CORES)
-            knob.configure_cgroups(nvme_device, exp_cgroups, config_point)
+                print(f"Generating experiment [numjobs={NUMJOBS}]")         
 
-            print(f"Generating experiment [numjobs={NUMJOBS}]")         
+                gjob = setup_gjob(nvme_device.syspath)
+                gjob.add_options([
+                    fio.GroupReportingOption(False),
+                ])
+                for i, app in enumerate(setup_sjobs(exp_cgroups, NUMJOBS)):
+                    app = experiment.change_jobs(app, i)              
+                    gjob.add_job(app) 
+                    # .
+                    sjob_cgroup_path = f"{exp_cgroups[0].subpath if i == 0 else exp_cgroups[1].subpath}/fio-workload-{i}.service"
+                    cgroups.create_cgroup_service(sjob_cgroup_path)
+                job_gen.generate_job_file(f'./tmp/{experiment.name}-{knob.name}-{NUMJOBS}', gjob)
 
-            gjob = setup_gjob(nvme_device.syspath)
-            gjob.add_options([
-                fio.GroupReportingOption(False),
-            ])
-            for i, app in enumerate(setup_sjobs(exp_cgroups, NUMJOBS)):
-                app = experiment.change_jobs(app, i)              
-                gjob.add_job(app) 
-                # .
-                sjob_cgroup_path = f"{exp_cgroups[0].subpath if i == 0 else exp_cgroups[1].subpath}/fio-workload-{i}.service"
-                cgroups.create_cgroup_service(sjob_cgroup_path)
-            job_gen.generate_job_file(f'./tmp/{experiment.name}-{knob.name}-{NUMJOBS}', gjob)
+                print(f"Running experiment [experiment={experiment.name}]")                    
 
-            print(f"Running experiment [experiment={experiment.name}]")                    
+                fioproc = job_runner.run_job_deferred(\
+                    f'./tmp/{experiment.name}-{knob.name}-{NUMJOBS}',\
+                    f'./{outdir}/{experiment.name}-{knob.name}-{NUMJOBS}-{config_point}.json')
+                fioproc.wait()
 
-            fioproc = job_runner.run_job_deferred(\
-                f'./tmp/{experiment.name}-{knob.name}-{NUMJOBS}',\
-                f'./{outdir}/{experiment.name}-{knob.name}-{NUMJOBS}-{config_point}.json')
-            fioproc.wait()
-
-            with open(f'./{outdir}/{experiment.name}-{knob.name}-{NUMJOBS}-{config_point}.json', 'r') as f:
-                js = json.load(f)
-                bws = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
-                bwsum = sum(bws) / (1024 * 1024)
-                bw1 = bws[0] / (1024 * 1023) 
-                p99 = js['jobs'][0]['read']['clat_ns']['percentile']['99.000000'] / 1000
-                print(f"LC-app achieved {p99}us @ {bw1} GiB/s. Aggregated BW of all workloads is {bwsum} GiB/s")
-
+                with open(f'./{outdir}/{experiment.name}-{knob.name}-{NUMJOBS}-{config_point}.json', 'r') as f:
+                    js = json.load(f)
+                    bws = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
+                    bwsum = sum(bws) / (1024 * 1024)
+                    bw1 = bws[0] / (1024 * 1023) 
+                    p99 = js['jobs'][0]['read']['clat_ns']['percentile']['99.000000'] / 1000
+                    print(f"LC-app achieved {p99}us @ {bw1} GiB/s. Aggregated BW of all workloads is {bwsum} GiB/s")
+            except:
+                print(f"Failed {experiment.name} - {knob.name} {config_point}/{knob.points}")
 
 def run_experiments(experiments_to_run: list[Experiment], knobs_to_test: list[IOKnob]):
     nvme_device = get_nvmedev()

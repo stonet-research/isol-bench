@@ -75,7 +75,7 @@ def mq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroup
     print(f"LC={p[0]} other={p[1]}%")
 
 def iomax_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point):
-    max_ios = [50, 100, 200, 300, 400, 500, 1000, 1500, 2000, 2300]
+    max_ios = list(range(80, 2380, 80))
     max_io = max_ios[point % len(max_ios)]
 
     print(f"set BE-app io.max = {max_io} MiB/s")
@@ -91,8 +91,8 @@ def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgrou
     nvme_device.set_ioscheduler_parameter("low_latency", "0")
     nvme_device.set_ioscheduler_parameter("slice_idle", "1")
 
-    weights = [1/32, 1/8, 1, 2, 5, 10, 100, 1000]
-    weight = weights[point]
+    weights = [1/64, 1/32, 1/16, 1/8, 1] + list(range(25, 1025, 25))
+    weight = weights[point % len(weights)]
     lc_weight = int(weight if weight >= 1 else 1)
     be_weight = int(1 if weight >= 1 else (1 // weight))
     print(f"Using io.bfq.weight={lc_weight}/{be_weight}")
@@ -105,7 +105,8 @@ def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgrou
 def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
     major_minor = nvme_device.major_minor
 
-    lats = [10, 70, 100, 200, 500]
+    #lats = [10, 70, 100, 200, 500]
+    lats = list(range(25, 1150, 25))
     lat = lats[point % len(lats)]
     print(f"Using latency target={lat}")
     exp_cgroups[0].iolatency = cgroups.IOLatency(major_minor, lat)
@@ -182,11 +183,11 @@ def setup_sjobs(exp_cgroups: list[cgroups.Cgroup], numjobs: int) -> list[fio.Fio
 
 IO_KNOBS = {
     "none": IOKnob("none", 1, none_configure_cgroups),
-    "bfq2": IOKnob("bfq2", 16, bfq2_configure_cgroups),
+    "bfq2": IOKnob("bfq2", 45, bfq2_configure_cgroups),
     "mq": IOKnob("mq", 27, mq_configure_cgroups),
     "mq2": IOKnob("mq2", 27, mq2_configure_cgroups),
-    "iomax": IOKnob("iomax", 30, iomax_configure_cgroups),
-    "iolat": IOKnob("iolat", 5*3, iolat_configure_cgroups),
+    "iomax": IOKnob("iomax", 45, iomax_configure_cgroups),
+    "iolat": IOKnob("iolat", 45, iolat_configure_cgroups),
     "iocost": IOKnob("iocost", 45, iocost_configure_cgroups), # 54
 }
 
@@ -230,7 +231,7 @@ def rq_job_joined(sjob, i):
 def access_job(sjob, i):
     if i == 0:
         return sjob 
-    joption = fio.JobOption(fio.JobWorkload.SEQ_READ)
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.SEQ_READ][i%2])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -239,7 +240,7 @@ def access_job(sjob, i):
     return sjob
 
 def access_job_joined(sjob, i):
-    joption = fio.JobOption(fio.JobWorkload.SEQ_READ)
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.SEQ_READ][i%2])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -332,6 +333,9 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
                     bw1 = bws[0] / (1024 * 1023) 
                     p99 = js['jobs'][0]['read']['clat_ns']['percentile']['99.000000'] / 1000
                     print(f"LC-app achieved {p99}us @ {bw1} GiB/s. Aggregated BW of all workloads is {bwsum} GiB/s")
+            except KeyboardInterrupt:
+                print("Trying to exit gracefully")
+                return
             except:
                 print(f"Failed {experiment.name} - {knob.name} {config_point}/{knob.points}")
 

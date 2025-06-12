@@ -177,6 +177,29 @@ class IOPriorityClass(Enum):
         except:
             return IOPriorityClass.UNKNOWN
 
+    @staticmethod
+    def compare(a, b):
+        if a == IOPriorityClass.IDLE:
+            if b == IOPriorityClass.IDLE:
+                return 0
+            else:
+                return -1
+        elif a == IOPriorityClass.RESTRICT_TO_BE:
+            if b == IOPriorityClass.IDLE:
+                return 1
+            elif b == IOPriorityClass.PROMOTE_TO_RT:
+                return -1
+            else:
+                return 0
+        elif a == IOPriorityClass.PROMOTE_TO_RT:
+            if b == IOPriorityClass.PROMOTE_TO_RT:
+                return 0
+            else:
+                return 1
+        # We do not care
+        else:
+            return 0
+
 @dataclass
 class IOLatency:
     major_minor: str

@@ -30,6 +30,8 @@ EXPERIMENT_MAX_TENANT_COUNT=256
 
 CORES = '1-10'
 NUMJOBS = 8 + 1 # +1 to force 1 LC-tenants
+CONFIG_POINT_FORCED = False
+CONFIG_POINT = 0
 
 @dataclass
 class IOKnob:
@@ -159,7 +161,7 @@ def setup_gjob(device_name: str) -> fio.FioGlobalJob:
         fio.IOEngineOption(fio.IOEngine.LIBAIO), # <- when throttling iouring can die.
         fio.RequestSizeOption(f"{4 * 1024}"),
         fio.ConcurrentWorkerOption(1),
-        fio.TimedOption('20s', '60s'),
+        fio.TimedOption('20s', '30s'),
         fio.AllowedCPUsOption(CORES),
     ])
     return gjob
@@ -185,7 +187,7 @@ IO_KNOBS = {
     "none": IOKnob("none", 1, none_configure_cgroups),
     "bfq2": IOKnob("bfq2", 45, bfq2_configure_cgroups),
     "mq": IOKnob("mq", 27, mq_configure_cgroups),
-    "mq2": IOKnob("mq2", 27, mq2_configure_cgroups),
+    #"mq2": IOKnob("mq2", 27, mq2_configure_cgroups),
     "iomax": IOKnob("iomax", 45, iomax_configure_cgroups),
     "iolat": IOKnob("iolat", 45, iolat_configure_cgroups),
     "iocost": IOKnob("iocost", 45, iocost_configure_cgroups), # 54
@@ -248,6 +250,65 @@ def access_job_joined(sjob, i):
     ])
     return sjob
 
+def rw_short_job(sjob, i):
+    if i == 0:
+        return sjob 
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][i%2])
+    qoption =  fio.QDOption(256)
+    sjob.add_options([
+        qoption,
+        joption
+    ])
+    
+    if i%2 == 1:
+        moption = fio.RWMixRatioOption("75")
+        sjob.add_options([
+            moption
+        ])
+    return sjob
+
+def rw_short_job_joined(sjob, i):
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][i%2])
+    qoption =  fio.QDOption(256)
+    sjob.add_options([
+        qoption,
+        joption
+    ])
+
+    if i%2 == 1:
+        moption = fio.RWMixRatioOption("75")
+        sjob.add_options([
+            moption
+        ])
+    return sjob
+
+def rw_long_job(sjob, i):
+    toption = fio.TimedOption('20s', '10m')
+    if i == 0:
+        sjob.add_options([
+            toption
+        ])
+        return sjob 
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.RAN_WRITE][i%2])
+    qoption =  fio.QDOption(256)
+    sjob.add_options([
+        qoption,
+        joption,
+        toption
+    ])
+    return sjob
+
+def rw_long_job_joined(sjob, i):
+    toption = fio.TimedOption('20s', '10m')
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.RAN_WRITE][i%2])
+    qoption =  fio.QDOption(256)
+    sjob.add_options([
+        qoption,
+        joption,
+        toption
+    ])
+    return sjob
+
 EXPERIMENTS = {
     # General random read
     "tapps": Experiment("tapps", tapps_job),
@@ -258,6 +319,12 @@ EXPERIMENTS = {
     # Access pattern
     "access": Experiment("access", access_job),
     "access_joined": Experiment("access_joined", access_job_joined), 
+    # short rw
+    "rwshort": Experiment("rwshort", rw_short_job),
+    "rwshort_joined": Experiment("rwshort_joined", rw_short_job_joined),
+    # GC
+    "rwlong": Experiment("rwlong", rw_long_job),
+    "rwlong_joined": Experiment("rwlong_joined", rw_long_job),
 }
 
 def find_isolation(knobs_to_test: list[IOKnob]):
@@ -295,7 +362,12 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
         print(f"Experiment [ {experiment.name} -- {knob.name}]") 
         print(f"___________________________________")
 
-        for config_point in range(knob.points):
+        if CONFIG_POINT_FORCED:
+            print(f"Overwriting config_point range [0--{knob.points}] with [{CONFIG_POINT}]")
+            config_points = [CONFIG_POINT]
+        else:
+            config_points = range(knob.points)
+        for config_point in config_points:
             try:
                 print(f"Configuring experiment [{experiment.name}, {config_point}/{knob.points}] on {nvme_device.syspath}")        
                 cgroups.disable_iocontrol_with_groups(exp_cgroups)
@@ -333,6 +405,19 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
                     bw1 = bws[0] / (1024 * 1023) 
                     p99 = js['jobs'][0]['read']['clat_ns']['percentile']['99.000000'] / 1000
                     print(f"LC-app achieved {p99}us @ {bw1} GiB/s. Aggregated BW of all workloads is {bwsum} GiB/s")
+
+                # Cleaning up
+                if not nvme_device.isoptane and "rw" in experiment.name:
+                    print("Resetting device state by preconditioning")
+                    nvme_format(nvme_device)
+                    fioproc = job_runner.run_job_deferred(\
+                        f'./precondition.fio',\
+                        f'./out/{experiment.name}-precond.json',
+                        fio_extra_opts=[f"filename={nvme_device.syspath}"])
+                    fioproc.wait()
+                    print("Done preconditioning")
+            
+            # Cleanup
             except KeyboardInterrupt:
                 print("Trying to exit gracefully")
                 return
@@ -368,6 +453,7 @@ if __name__ == "__main__":
     parser.add_argument(f"--isolation", type=bool, required=False, default=False)
     # Shortcut
     parser.add_argument(f"--numjobs", type=int, required=False, default=0)
+    parser.add_argument(f"--configpoint", type=int, required=False, default=-1)
     # cgroups
     for key in IO_KNOBS.keys():
         parser.add_argument(f"--{key}", type=bool, required=False, default=False)
@@ -384,6 +470,9 @@ if __name__ == "__main__":
             isol = val
         elif arg == "numjobs" and val > 0:
             NUMJOBS = val
+        elif arg == "configpoint" and val >= 0:
+            CONFIG_POINT_FORCED = True
+            CONFIG_POINT = val
         elif arg in IO_KNOBS and val:
             knobs_to_test.append(IO_KNOBS[arg])
         elif arg in EXPERIMENTS and val:

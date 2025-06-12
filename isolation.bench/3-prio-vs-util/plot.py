@@ -35,7 +35,10 @@ def parse_fio(filename):
 
 colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA, GREEN, OLIVE, BLUE, 'orange']
 
-for experiment in ["tapps", "tapps_joined", "rq", "rq_joined", "access"]:
+experiments = ["tapps", "rq", "access", "rwshort", "rwlong"]
+for i in range(len(experiments)):
+    experiments.append(f"{experiments[i]}_joined")
+for experiment in experiments:
     for knob in KNOBS:
         fig, ax = plt.subplots()
         
@@ -165,4 +168,33 @@ for experiment in ["tapps", "tapps_joined", "rq", "rq_joined", "access"]:
         os.makedirs(f'./plots', exist_ok = True)
         fig.savefig(f'./plots/{experiment}-{knob}.pdf', bbox_inches="tight")
 
+# Plot merges
+for experiment in ["tapps", "tapps_joined", "rq", "rq_joined", "access", "access_joined"]:
+    for knob in KNOBS:
+        fig, ax = plt.subplots()
+        m = []
+        for i in range(0, 46, 1):
+            filename = f'./out/{nvme_device.eui}/{experiment}-{knob}-9-{i}.json'
+            try:
+                js = parse_fio(filename)
+                rios = js['disk_util'][0]['read_sectors'] / 8
+                wios = js['disk_util'][0]['write_sectors'] / 8
+                rmerges = js['disk_util'][0]['read_merges']
+                wmerges = js['disk_util'][0]['write_merges']
 
+                merges_normalized = 0
+                if rios:
+                    merges_normalized = merges_normalized + (rmerges / rios)
+                if wios:
+                    merges_normalized = merges_normalized + (wmerges / wios)
+                m.append(merges_normalized)
+            except: 
+                continue
+        
+        ax.plot(list(range(len(m))), m, color='gray', linewidth=4, marker='o', markersize=8)
+        ax.set_ylabel("merges")
+        ax.set_xlabel("iteration")
+        plt.grid()
+        plt.ylim(0, 1)
+
+        fig.savefig(f'./plots/merges-{experiment}-{knob}.pdf', bbox_inches="tight")

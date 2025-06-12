@@ -53,7 +53,7 @@ def bfq_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroup
     # We want to use the default weight 100 if weights are uniform
     if sum(weights) == len(weights):
         for i, w in enumerate(weights): 
-            exp_cgroups[i].ioweight = cgroups.IOBFQWeight("default", 100)
+            exp_cgroups[i].iobfqweight = cgroups.IOBFQWeight("default", 100)
         return
 
     # Ensure weights scale up but we are using the full range (e.g., not below 100 if possible)
@@ -68,7 +68,7 @@ def bfq2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgrou
     # We want to use the default weight 100 if weights are uniform
     if sum(weights) == len(weights):
         for i, w in enumerate(weights): 
-            exp_cgroups[i].ioweight = cgroups.IOBFQWeight("default", 100)
+            exp_cgroups[i].iobfqweight = cgroups.IOBFQWeight("default", 100)
         return
 
     # Ensure weights scale up but we are using the full range (e.g., not below 100 if possible)
@@ -83,7 +83,7 @@ def bfq3_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgrou
     # We want to use the default weight 100 if weights are uniform
     if sum(weights) == len(weights):
         for i, w in enumerate(weights): 
-            exp_cgroups[i].ioweight = cgroups.IOBFQWeight("default", 100)
+            exp_cgroups[i].iobfqweight = cgroups.IOBFQWeight("default", 100)
         return
 
     # Ensure weights scale up but we are using the full range (e.g., not below 100 if possible)

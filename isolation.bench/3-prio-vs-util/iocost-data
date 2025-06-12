@@ -1,0 +1,273 @@
+___________________________________
+Experiment [ tapps -- iocost]
+___________________________________
+Configuring experiment [tapps, 0/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.5 read_target_us=25 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 34.048us @ aggregated BW of 0.1125514666223526 GiB/s
+Configuring experiment [tapps, 1/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.5 read_target_us=25 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 24.192us @ aggregated BW of 0.1125475565595627 GiB/s
+Configuring experiment [tapps, 2/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.5 read_target_us=25 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 22.912us @ aggregated BW of 0.21199562850856782 GiB/s
+Configuring experiment [tapps, 3/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.5 read_target_us=100 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 34.56us @ aggregated BW of 0.19997231960391998 GiB/s
+Configuring experiment [tapps, 4/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.5 read_target_us=100 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 24.704us @ aggregated BW of 0.2091500123348236 GiB/s
+Configuring experiment [tapps, 5/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.5 read_target_us=100 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 24.704us @ aggregated BW of 0.31117041905784615 GiB/s
+Configuring experiment [tapps, 6/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.5 read_target_us=1000 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 61.184us @ aggregated BW of 0.4985173861169815 GiB/s
+Configuring experiment [tapps, 7/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.5 read_target_us=1000 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 48.896us @ aggregated BW of 0.6927073399219513 GiB/s
+Configuring experiment [tapps, 8/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.5 read_target_us=1000 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 58.624us @ aggregated BW of 0.7737487077703477 GiB/s
+Configuring experiment [tapps, 9/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.125 read_target_us=25 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 35.072us @ aggregated BW of 0.07819981574916839 GiB/s
+Configuring experiment [tapps, 10/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.125 read_target_us=25 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 27.008us @ aggregated BW of 0.04588398933410645 GiB/s
+Configuring experiment [tapps, 11/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.125 read_target_us=25 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 23.168us @ aggregated BW of 0.26842644724464415 GiB/s
+Configuring experiment [tapps, 12/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.125 read_target_us=100 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 35.584us @ aggregated BW of 0.23400941689777374 GiB/s
+Configuring experiment [tapps, 13/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.125 read_target_us=100 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 24.704us @ aggregated BW of 0.24226069450378415 GiB/s
+Configuring experiment [tapps, 14/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.125 read_target_us=100 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 27.008us @ aggregated BW of 0.3524358272542954 GiB/s
+Configuring experiment [tapps, 15/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.125 read_target_us=1000 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 41.728us @ aggregated BW of 0.4168981313714981 GiB/s
+Configuring experiment [tapps, 16/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.125 read_target_us=1000 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 28.288us @ aggregated BW of 0.4218764066686631 GiB/s
+Configuring experiment [tapps, 17/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.125 read_target_us=1000 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 28.032us @ aggregated BW of 0.4218236049013138 GiB/s
+Configuring experiment [tapps, 18/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=1 read_target_us=25 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 1777.664us @ aggregated BW of 1.2223898967103959 GiB/s
+Configuring experiment [tapps, 19/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=1 read_target_us=25 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 24.448us @ aggregated BW of 0.2249576489124298 GiB/s
+Configuring experiment [tapps, 20/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=1 read_target_us=25 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 23.168us @ aggregated BW of 0.2229227304449081 GiB/s
+Configuring experiment [tapps, 21/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=1 read_target_us=100 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 34.56us @ aggregated BW of 0.23094371954727172 GiB/s
+Configuring experiment [tapps, 22/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=1 read_target_us=100 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 24.448us @ aggregated BW of 0.2692868947982788 GiB/s
+Configuring experiment [tapps, 23/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=1 read_target_us=100 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 25.984us @ aggregated BW of 0.3318661530809402 GiB/s
+Configuring experiment [tapps, 24/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=1 read_target_us=1000 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 62.208us @ aggregated BW of 0.6175457477560042 GiB/s
+Configuring experiment [tapps, 25/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=1 read_target_us=1000 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 60.672us @ aggregated BW of 0.7728361845026016 GiB/s
+Configuring experiment [tapps, 26/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=1 read_target_us=1000 min_scaling=10.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 62.72us @ aggregated BW of 0.7871191581077576 GiB/s
+Configuring experiment [tapps, 27/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.5 read_target_us=25 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 54.016us @ aggregated BW of 0.5622661352148056 GiB/s
+Configuring experiment [tapps, 28/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.5 read_target_us=25 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 36.096us @ aggregated BW of 0.5626094261789323 GiB/s
+Configuring experiment [tapps, 29/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.5 read_target_us=25 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 36.608us @ aggregated BW of 0.5621025641765595 GiB/s
+Configuring experiment [tapps, 30/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.5 read_target_us=100 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 48.896us @ aggregated BW of 0.5622619231548309 GiB/s
+Configuring experiment [tapps, 31/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.5 read_target_us=100 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 36.608us @ aggregated BW of 0.5619494994487763 GiB/s
+Configuring experiment [tapps, 32/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.5 read_target_us=100 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 34.56us @ aggregated BW of 0.5623732090005875 GiB/s
+Configuring experiment [tapps, 33/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.5 read_target_us=1000 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 60.672us @ aggregated BW of 0.6767566998796464 GiB/s
+Configuring experiment [tapps, 34/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.5 read_target_us=1000 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 60.16us @ aggregated BW of 0.7830765565242767 GiB/s
+Configuring experiment [tapps, 35/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.5 read_target_us=1000 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 57.6us @ aggregated BW of 0.8123487790422439 GiB/s
+Configuring experiment [tapps, 36/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.125 read_target_us=25 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 35.072us @ aggregated BW of 0.1433966954536438 GiB/s
+Configuring experiment [tapps, 37/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.125 read_target_us=25 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 25.472us @ aggregated BW of 0.14190749327278135 GiB/s
+Configuring experiment [tapps, 38/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.125 read_target_us=25 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 24.192us @ aggregated BW of 0.26623598549365995 GiB/s
+Configuring experiment [tapps, 39/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.125 read_target_us=100 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 35.584us @ aggregated BW of 0.23040260473823548 GiB/s
+Configuring experiment [tapps, 40/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.125 read_target_us=100 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 26.24us @ aggregated BW of 0.2525943199796677 GiB/s
+Configuring experiment [tapps, 41/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.125 read_target_us=100 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 26.496us @ aggregated BW of 0.3621173620214462 GiB/s
+Configuring experiment [tapps, 42/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=0.125 read_target_us=1000 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 41.216us @ aggregated BW of 0.4217444101963043 GiB/s
+Configuring experiment [tapps, 43/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=0.125 read_target_us=1000 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 28.544us @ aggregated BW of 0.42106076081466676 GiB/s
+Configuring experiment [tapps, 44/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=0.125 read_target_us=1000 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 27.52us @ aggregated BW of 0.42157199382781974 GiB/s
+Configuring experiment [tapps, 45/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=1 read_target_us=25 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 84.48us @ aggregated BW of 1.6206053654346466 GiB/s
+Configuring experiment [tapps, 46/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=1 read_target_us=25 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 68.096us @ aggregated BW of 1.1242335478467942 GiB/s
+Configuring experiment [tapps, 47/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=1 read_target_us=25 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 68.096us @ aggregated BW of 1.1243386109666824 GiB/s
+Configuring experiment [tapps, 48/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=1 read_target_us=100 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 70.144us @ aggregated BW of 1.1246524651851653 GiB/s
+Configuring experiment [tapps, 49/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=1 read_target_us=100 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 69.12us @ aggregated BW of 1.1234786748905183 GiB/s
+Configuring experiment [tapps, 50/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=1 read_target_us=100 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 70.144us @ aggregated BW of 1.1237980922060014 GiB/s
+Configuring experiment [tapps, 51/54] on /dev/nvme0n1
+Using weight=1 model_amplifier=1 read_target_us=1000 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 70.144us @ aggregated BW of 1.124370304742813 GiB/s
+Configuring experiment [tapps, 52/54] on /dev/nvme0n1
+Using weight=10 model_amplifier=1 read_target_us=1000 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 69.12us @ aggregated BW of 1.1236298163728713 GiB/s
+Configuring experiment [tapps, 53/54] on /dev/nvme0n1
+Using weight=10000 model_amplifier=1 read_target_us=1000 min_scaling=50.0%
+Generating experiment [numjobs=8]
+Running experiment [experiment=tapps]
+Achieved 68.096us @ aggregated BW of 1.1237569808959962 GiB/s

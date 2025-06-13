@@ -60,22 +60,28 @@ for experiment, weighted in [
         ("unsaturated", False),  
         ("unsaturatedw", True),  
         ("saturated", False),  
+        ("saturatedspam", False),  
         ("saturatedw", True), 
+        ("saturatedspamw", True), 
         ("requestsize", False),
         ("requestsizew", True),
         ("requestsizelarge", False),
+        ("requestsizelargespam", False),
         ("seqread", False),
         ("mixedread", False),
+        ("mixedreadspam", False),
         ("ranwrite", False),
         ("mixedwrite", False),
         ("mixed90write", False),
         ("mixedwrite3", False),
+        ("mixedranwrite3spam", False),
+        ("mixedwrite2spam", False),
         ("mixedwrite2", False),
         ("requestsizerange", False),
     ]:
     print(f"EXPERIMENT {experiment}")
     print('----------------------------------------------------------')
-    numjobss = [8, 16, 32, 64, 128, 256]
+    numjobss = [2, 8, 16, 32, 64, 128, 256]
     if "unsaturated" in experiment:
         numjobss = [2, 4]
     for numjobs in numjobss:

@@ -18,7 +18,8 @@ EXPERIMENT_MAX_TENANT_COUNT=256
 CORES = '1-10'
 NUMJOBS = [2, 4, 8, 16, 32, 64, 128, 256]
 NUMJOBS_FORCED = False
-ITER = [1]
+ITER = 1
+FROMITER = 0
 
 @dataclass
 class IOKnob:
@@ -292,10 +293,19 @@ def saturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
     ])
     return (sjob, bw_rate)
 
+def saturated_spam_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    coption = fio.ConcurrentWorkerOption("4")
+    sjob.add_options([
+       coption 
+    ])
+    return (sjob, bw_rate)
+
 def unfairapp_saturated_job(sjob, saturation_point, numjobs, i, single_job_bw):
     # We give some apps more than others
-    div = [1, 2, 4, 8][i % 4]
-    bw_rate = f"{int(single_job_bw // div)}"
+    mult = [1, 0.60][i % 2]
+    bw_rate = f"{int(single_job_bw * mult)}"
     roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
     sjob.add_options([
         roption
@@ -332,6 +342,18 @@ def requestsize_large_job(sjob, saturation_point, numjobs, i, single_job_bw):
     sjob.add_options([
         roption,
         soption
+    ])
+    return (sjob, bw_rate)
+
+def requestsize_large_spam_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
+    soption = fio.RequestSizeOption(["4096", f"{1024 * 256}"][i % 2])
+    coption = fio.ConcurrentWorkerOption("4")
+    sjob.add_options([
+        soption,
+        coption,
     ])
     return (sjob, bw_rate)
 
@@ -387,6 +409,17 @@ def mixedread_job(sjob, saturation_point, numjobs, i, single_job_bw):
     ])
     return (sjob, bw_rate)
 
+def mixedread_spam_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    joption = fio.JobOption([fio.JobWorkload.SEQ_READ, fio.JobWorkload.RAN_READ][i%2])
+    coption = fio.ConcurrentWorkerOption("4")
+    sjob.add_options([
+        joption,
+        coption
+    ])
+    return (sjob, bw_rate)
+
 def ranwrite_job(sjob, saturation_point, numjobs, i, single_job_bw):
     # Limit, we give each tenant as much as it can support
     bw_rate = single_job_bw
@@ -417,15 +450,30 @@ def mixedwrite2_job(sjob, saturation_point, numjobs, i, single_job_bw):
     # Limit, we give each tenant as much as it can support
     bw_rate = single_job_bw
     roption = fio.RateOption(bw_rate, bw_rate, bw_rate)
-    joption = fio.JobOption(fio.JobWorkload.MIXED)
-    toption = fio.TimedOption('20s', '10m')
-    moption = fio.RWMixRatioOption("90")
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][i%2])
+    moption = fio.RWMixRatioOption("75")
     sjob.add_options([
         roption,
-        joption,
-        toption,
-        moption
+        joption
     ])
+    if i%2 == 1:
+        sjob.add_options([
+            moption
+        ])
+    return (sjob, bw_rate)
+
+def mixedwrite2_spam_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][i%2])
+    moption = fio.RWMixRatioOption("75")
+    sjob.add_options([
+        joption
+    ])
+    if i%2 == 1:
+        sjob.add_options([
+            moption
+        ])
     return (sjob, bw_rate)
 
 def mixedranwrite3_job(sjob, saturation_point, numjobs, i, single_job_bw):
@@ -436,6 +484,17 @@ def mixedranwrite3_job(sjob, saturation_point, numjobs, i, single_job_bw):
     toption = fio.TimedOption('20s', '10m')
     sjob.add_options([
         roption,
+        joption,
+        toption
+    ])
+    return (sjob, bw_rate)
+
+def mixedranwrite3_spam_job(sjob, saturation_point, numjobs, i, single_job_bw):
+    # Limit, we give each tenant as much as it can support
+    bw_rate = single_job_bw
+    joption = fio.JobOption([fio.JobWorkload.RAN_WRITE, fio.JobWorkload.RAN_READ][i % 2])
+    toption = fio.TimedOption('20s', '10m')
+    sjob.add_options([
         joption,
         toption
     ])
@@ -619,18 +678,22 @@ EXPERIMENTS = {
     "unfairunsaturated": Experiment("unsaturated", False, False, unfair_unsaturated_job),
     "saturated": Experiment("saturated", True, False, saturated_job),
     "saturatedw": Experiment("saturatedw", True, True, saturated_job),
-    "saturatedunfair": Experiment("saturatedunfairw", True, False, unfairapp_saturated_job),
+    "saturatedspam": Experiment("saturatedspam", True, False, saturated_spam_job),
+    "saturatedspamw": Experiment("saturatedspamw", True, True, saturated_spam_job),
+    "saturatedunfair": Experiment("saturatedunfair", True, False, unfairapp_saturated_job),
     "saturatedunfairw": Experiment("saturatedunfairw", True, True, unfairapp_saturated_job),
     # Random read rq size impact
     "requestsize": Experiment("requestsize", True, False, requestsize_job),
     "requestsizew": Experiment("requestsizew", True, True, requestsize_job),
     "requestsizemax": Experiment("requestsizemax", True, False, requestsize_max_job),
     "requestsizelarge": Experiment("requestsizelarge", True, False, requestsize_large_job),
+    "requestsizelargespam": Experiment("requestsizelargespam", True, False, requestsize_large_spam_job),
     # crashes -- "requestsizesplit": Experiment("requestsizesplit", True, False, requestsize_split_job),
     # crashes -- "requestsizerange": Experiment("requestsizerange", True, False, requestsize_range_job),
     # Read access pattern
     "seqread": Experiment("seqread", True, False, seqread_job),
     "mixedread": Experiment("mixedread", True, False, mixedread_job),
+    "mixedreadspam": Experiment("mixedreadspam", True, False, mixedread_spam_job),
     # Write-only
     "ranwrite": Experiment("ranwrite", True, False, ranwrite_job),
     "ranwritew": Experiment("ranwritew", True, True, ranwrite_job),
@@ -639,8 +702,11 @@ EXPERIMENTS = {
     "mixedwritew": Experiment("mixedwritew", True, True, mixedwrite_job),
     "mixed90write": Experiment("mixed90write", True, False, mixedwrite2_job),
     "mixed90writew": Experiment("mixed90writew", True, True, mixedwrite2_job),
+    "mixedwrite2": Experiment("mixedwrite2", True, False, mixedwrite2_job),
+    "mixedwrite2spam": Experiment("mixedwrite2spam", True, False, mixedwrite2_spam_job),
     "mixedwrite3": Experiment("mixedwrite3", True, False, mixedranwrite3_job),
     "mixedwrite3w": Experiment("mixedwrite3w", True, True, mixedranwrite3_job),
+    "mixedwrite3spam": Experiment("mixedwrite3spam", True, False, mixedranwrite3_spam_job),
     #"mixedwrite4": Experiment("mixedwrite4", True, False, mixedranwrite4_job),
     #"mixedwrite4w": Experiment("mixedwrite4w", True, True, mixedranwrite4_job),
 }
@@ -728,7 +794,7 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
                 cgroups.create_cgroup_service(sjob_cgroup_path)
             job_gen.generate_job_file(f'./tmp/{experiment.name}-{knob.name}-{numjobs}', gjob)
 
-            for it in ITER:
+            for it in range(FROMITER, ITER):
     
                 print(f"Running experiment [experiment={experiment.name} numjobs={numjobs}] ITER={it}")                    
 
@@ -740,8 +806,17 @@ def run_experiment(experiment: Experiment, knobs_to_test: list[IOKnob], nvme_dev
                 with open(f'./{outdir}/{experiment.name}-{knob.name}-{numjobs}-{it}.json', 'r') as f:
                     js = json.load(f)
                     vs = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
-                    jains = proportional_slowdown_jains(vs, weights, rates)
-                    jains2 = jains_fairness_index_weighted(vs, weights)
+
+                    vsag = []
+                    if len(vs) != len(weights):
+                        jump = len(vs) / len(weights)
+                        vsag = len(weights) * [0]
+                        for i in range(len(vs)):
+                            vsag[int(i // jump)] = vsag[int(i // jump)] + vs[i]
+                    else:
+                        vsag = vs
+                    jains = proportional_slowdown_jains(vsag, weights, rates)
+                    jains2 = jains_fairness_index_weighted(vsag, weights)
                     bwsum = sum(vs) / (1024 * 1024)
                     print(f"Jains fairness: {jains} (PS) or {jains2} (LOAD) @ aggregated BW of {bwsum} GiB/s")
 
@@ -792,6 +867,7 @@ if __name__ == "__main__":
     # Shortcut
     parser.add_argument(f"--numjobs", type=int, required=False, default=0)
     parser.add_argument(f"--iter", type=int, required=False, default=1)
+    parser.add_argument(f"--fromiter", type=int, required=False, default=0)
     # cgroups
     for key in IO_KNOBS.keys():
         parser.add_argument(f"--{key}", type=bool, required=False, default=False)
@@ -818,7 +894,9 @@ if __name__ == "__main__":
             NUMJOBS = [val]
             NUMJOBS_FORCED = True
         elif arg == "iter":
-            ITER = range(val)
+            ITER = val
+        elif arg == "fromiter":
+            FROMITER = val
         elif arg in IO_KNOBS and val:
             knobs_to_test.append(IO_KNOBS[arg])
         elif arg in EXPERIMENTS and val:

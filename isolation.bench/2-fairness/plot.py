@@ -60,21 +60,28 @@ for experiment, weighted in [
         ("unsaturated", False),  
         ("unsaturatedw", True),  
         ("saturated", False),  
+        ("saturatedspam", False),  
         ("saturatedw", True), 
+        ("saturatedspamw", True), 
         ("requestsize", False),
         ("requestsizew", True),
         ("requestsizelarge", False),
+        ("requestsizelargespam", False),
         ("seqread", False),
         ("mixedread", False),
+        ("mixedreadspam", False),
         ("ranwrite", False),
         ("mixedwrite", False),
         ("mixed90write", False),
         ("mixedwrite3", False),
+        ("mixedranwrite3spam", False),
+        ("mixedwrite2spam", False),
+        ("mixedwrite2", False),
         ("requestsizerange", False),
     ]:
     print(f"EXPERIMENT {experiment}")
     print('----------------------------------------------------------')
-    numjobss = [8, 16, 32, 64, 128, 256] if not "write" in experiment else [256]
+    numjobss = [2, 8, 16, 32, 64, 128, 256]
     if "unsaturated" in experiment:
         numjobss = [2, 4]
     for numjobs in numjobss:
@@ -95,22 +102,26 @@ for experiment, weighted in [
                     js = parse_fio(filename)
                 
                     vs = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
+                    if experiment == "mixedwrite2":
+                        print(knob, vs, print(len(js['jobs'])))
                     weights =  list(range(1, len(vs) +1)) if weighted else len(vs) * [1] 
-                    rates = [isol[knob]['randread'] for _ in range(len(weights))]
-                    for i in range(len(rates)):
-                        if 'bs' in js['jobs'][i]['job options'] and '65536' in js['jobs'][i]['job options']['bs']:
-                            rates[i] = isol[knob]['64k']
-                        elif 'bs' in js['jobs'][i]['job options'] and '262' in js['jobs'][i]['job options']['bs']:
-                            rates[i] = isol[knob]['256k']
-                        elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'read':
-                            rates[i] = isol[knob]['seqread']
-                        elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'randwrite':
-                            rates[i] = isol[knob]['randwrite']
-                        elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'randrw':
-                            rates[i] = isol[knob]['mixed']
-                            if 'rwmixread' in js['jobs'][i]['job options']:
-                                rates[i] = isol[knob]['mixed90']  
                     try:
+                        rates = [isol[knob]['randread'] for _ in range(len(weights))]
+                        for i in range(len(rates)):
+                            if 'bs' in js['jobs'][i]['job options'] and '65536' in js['jobs'][i]['job options']['bs']:
+                                rates[i] = isol[knob]['64k']
+                            elif 'bs' in js['jobs'][i]['job options'] and '262' in js['jobs'][i]['job options']['bs']:
+                                rates[i] = isol[knob]['256k']
+                            elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'read':
+                                rates[i] = isol[knob]['seqread']
+                            elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'randwrite':
+                                rates[i] = isol[knob]['randwrite']
+                            elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'randrw':
+                                rates[i] = isol[knob]['mixed']
+                                if 'rwmixread' in js['jobs'][i]['job options']:
+                                    rates[i] = isol[knob]['mixed90']  
+                        if experiment == "mixedwrite2":
+                            print(knob, vs, weights, rates)  
                         jains = proportional_slowdown_jains(vs, weights, rates)
                         subyp.append(jains)
                     except:

@@ -100,11 +100,22 @@ for experiment, weighted in [
                 filename = f'./out/{nvme_device.eui}/{experiment}-{knob}-{numjobs}-{it}.json'
                 try:
                     js = parse_fio(filename)
-                
+
+                    # Parse 
                     vs = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
                     if experiment == "mixedwrite2":
                         print(knob, vs, print(len(js['jobs'])))
-                    weights =  list(range(1, len(vs) +1)) if weighted else len(vs) * [1] 
+                    weights =  list(range(1, numjobs +1)) if weighted else numjobss * [1] 
+                    
+                    vsag = []
+                    if len(vs) != len(weights):
+                        jump = len(vs) / len(weights)
+                        vsag = len(weights) * [0]
+                        for i in range(len(vs)):
+                            vsag[int(i // jump)] = vsag[int(i // jump)] + vs[i]
+                    else:
+                        vsag = vs
+                        
                     try:
                         rates = [isol[knob]['randread'] for _ in range(len(weights))]
                         for i in range(len(rates)):
@@ -121,12 +132,12 @@ for experiment, weighted in [
                                 if 'rwmixread' in js['jobs'][i]['job options']:
                                     rates[i] = isol[knob]['mixed90']  
                         if experiment == "mixedwrite2":
-                            print(knob, vs, weights, rates)  
-                        jains = proportional_slowdown_jains(vs, weights, rates)
+                            print(knob, vsag, weights, rates)  
+                        jains = proportional_slowdown_jains(vsag, weights, rates)
                         subyp.append(jains)
                     except:
                         subyp.append(0)
-                    jains2 = jains_fairness_index_weighted(vs, weights)
+                    jains2 = jains_fairness_index_weighted(vsag, weights)
                     suby.append(jains2)
                     bwsum = sum(vs) / (1024 * 1024)
                     subyb.append(bwsum)

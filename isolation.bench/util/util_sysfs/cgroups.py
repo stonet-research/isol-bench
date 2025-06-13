@@ -177,6 +177,29 @@ class IOPriorityClass(Enum):
         except:
             return IOPriorityClass.UNKNOWN
 
+    @staticmethod
+    def compare(a, b):
+        if a == IOPriorityClass.IDLE:
+            if b == IOPriorityClass.IDLE:
+                return 0
+            else:
+                return -1
+        elif a == IOPriorityClass.RESTRICT_TO_BE:
+            if b == IOPriorityClass.IDLE:
+                return 1
+            elif b == IOPriorityClass.PROMOTE_TO_RT:
+                return -1
+            else:
+                return 0
+        elif a == IOPriorityClass.PROMOTE_TO_RT:
+            if b == IOPriorityClass.PROMOTE_TO_RT:
+                return 0
+            else:
+                return 1
+        # We do not care
+        else:
+            return 0
+
 @dataclass
 class IOLatency:
     major_minor: str
@@ -413,13 +436,31 @@ def disable_iocontrol(path = cgroup_syspath):
         [Cgroup(f"{spath}") for spath in list_cgroups(path)]
     )
 
-def get_iocostmodel_from_nvme_model(nvme_device, unreachable = False):
+def get_iocostmodel_from_nvme_model(nvme_device, unreachable = False, amplifier_explicit = 0):
     model = None
-    amplifier = 10 if unreachable else 1
+    # Determine scaling
+    amplifier = 1
+    if unreachable:
+        amplifier = 10
+    elif amplifier_explicit:
+        amplifier = amplifier_explicit
+    # Pick model
     if "Samsung SSD 980 PRO" in nvme_device.model:
-        model = IOCostModel(nvme_device.major_minor, 'user', 'linear', 2706339840 * amplifier, 786432 * amplifier, 786432 * amplifier, 1063126016 * amplifier, 135560 * amplifier, 130734 * amplifier)
+        rbps = 2706339840 
+        riops = 786432 
+        rriops = 786432 
+        wbps = 1063126016 
+        wiops = 135560 
+        rwiops = 130734 
     elif "INTEL SSDPE21D280GA" in nvme_device.model:
-        model = IOCostModel(nvme_device.major_minor, 'user', 'linear', 2413821952 * amplifier, 589312 * amplifier, 589312 * amplifier, 2413821952 * amplifier, 589312 * amplifier, 589312 * amplifier)
+        rbps = 2413821952
+        riops = 589312 
+        rriops = 589312
+        wbps = 2413821952 
+        wiops = 589312 
+        rwiops = 589312 
     else:
         raise ValueError("Model is not known, please add your own")
+    # set model
+    model = IOCostModel(nvme_device.major_minor, 'user', 'linear', int(rbps * amplifier), int(riops * amplifier), int(rriops * amplifier), int(wbps * amplifier), int(wiops * amplifier), int(rwiops * amplifier))
     return model

@@ -16,7 +16,7 @@ EXPERIMENT_CGROUP_PATH_PREAMBLE=f"example-workload"
 EXPERIMENT_MAX_TENANT_COUNT=256
 
 CORES = '1-10'
-NUMJOBS = [1, 3, 5, 7, 9, 11, 13, 15, 17]
+NUMJOBS = list(range(1, 65, 2))
 NUMDISKS = [1, 2, 4, 7]
 
 @dataclass

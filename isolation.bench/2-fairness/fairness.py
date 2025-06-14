@@ -467,8 +467,10 @@ def mixedwrite2_spam_job(sjob, saturation_point, numjobs, i, single_job_bw):
     bw_rate = single_job_bw
     joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][i%2])
     moption = fio.RWMixRatioOption("75")
+    coption = fio.ConcurrentWorkerOption("4")
     sjob.add_options([
-        joption
+        joption,
+        coption
     ])
     if i%2 == 1:
         sjob.add_options([
@@ -494,9 +496,11 @@ def mixedranwrite3_spam_job(sjob, saturation_point, numjobs, i, single_job_bw):
     bw_rate = single_job_bw
     joption = fio.JobOption([fio.JobWorkload.RAN_WRITE, fio.JobWorkload.RAN_READ][i % 2])
     toption = fio.TimedOption('20s', '10m')
+    coption = fio.ConcurrentWorkerOption("4")
     sjob.add_options([
         joption,
-        toption
+        toption,
+        coption
     ])
     return (sjob, bw_rate)
 

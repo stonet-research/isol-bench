@@ -57,6 +57,7 @@ yo = []
 yoe = []
 
 for experiment, weighted in [
+        ("mixedwrite3spam", False),
         ("unsaturated", False),  
         ("unsaturatedw", True),  
         ("saturated", False),  
@@ -74,7 +75,6 @@ for experiment, weighted in [
         ("mixedwrite", False),
         ("mixed90write", False),
         ("mixedwrite3", False),
-        ("mixedranwrite3spam", False),
         ("mixedwrite2spam", False),
         ("mixedwrite2", False),
         ("requestsizerange", False),
@@ -105,7 +105,7 @@ for experiment, weighted in [
                     vs = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
                     if experiment == "mixedwrite2":
                         print(knob, vs, print(len(js['jobs'])))
-                    weights =  list(range(1, numjobs +1)) if weighted else numjobss * [1] 
+                    weights =  list(range(1, numjobs +1)) if weighted else numjobs * [1] 
                     
                     vsag = []
                     if len(vs) != len(weights):

@@ -286,6 +286,26 @@ class BWLogOption(FioOption):
         ]
 
 @dataclass
+class BWShortLog(FioOption):
+    path: str
+
+    def to_opt(self) -> [(str, str)]:
+        return [
+            ("write_bw_log", self.path),
+            ("log_avg_msec", '1')
+        ]
+
+@dataclass
+class LatencyLog(FioOption):
+    path: str
+
+    def to_opt(self) -> [(str, str)]:
+        return [
+            ("write_lat_log", self.path),
+            ("log_avg_msec", '1')
+        ]
+
+@dataclass
 class AllowedCPUsOption(FioOption):
     cpus: str
 

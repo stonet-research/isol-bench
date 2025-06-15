@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import itertools
 from util_sysfs import cgroups as cgroups
 
-KNOBS = ["iocost", "mq", "mq2", "bfq2", "iolat", "iomax"]
+KNOBS = ["iocost", "iocost2", "iocost3", "mq", "mq2", "bfq2", "iolat", "iomax"]
 LABELS = ["io.cost"]
 WORKLOADS = {
     'tapps' : 'tapps',
@@ -36,6 +36,12 @@ def parse_fio(filename):
 colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA, GREEN, OLIVE, BLUE, 'orange']
 
 numjobs = [5, 9, 65]
+
+iolats = {}
+iomaxs = {}
+schedulers = {}
+iocost2s = {}
+iocost3s = {}
 
 experiments = ["tapps", "rq", "access", "rwshort", "rwlong"]
 for i in range(len(experiments)):
@@ -70,7 +76,7 @@ for experiment in experiments:
 
                     #plt.plot(xa, ya, color=colors[weight], label=f"w: {'10,000' if weight else '1'}", markersize=8, marker='o')
                     print(weight, xa, ya)
-                    plt.scatter(xa, ya, color=colors[weight], label=f"w:{['1-8', '1-1', '1-10,000'][weight]}")
+                    plt.scatter(xa, ya, color=colors[weight], label=f"w:{['1-8', '1-1', '1-10,000'][weight]}", s=60)
                 
             # for weight in [0, 1]:
             #     xa = []
@@ -94,6 +100,43 @@ for experiment in experiments:
             
                 
                 plt.legend()
+            elif knob == "iocost2" or knob == "iocost3":            
+                xa = []
+                ya = []
+                
+                for i in range(0, 35, 1):
+                    filename = f'./out/{nvme_device.eui}/{experiment}-{knob}-{numjob}-{i}.json'
+                    try:
+                        js = parse_fio(filename)
+                        
+                        bws = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
+                        bwsum = sum(bws[1:]) / (1024 * 1024)
+                        p99 = js['jobs'][0]['read']['clat_ns']['percentile']['99.000000'] / 1000
+                        bwlc = bws[0] / (1024 * 1024)
+
+                        xa.append(bwsum)
+                        if "_joined" in experiment: 
+                            ya.append(bwlc)
+                        else:
+                            ya.append(p99)
+                    except:
+                        pass
+                print(xa, ya)
+                
+                for ra in range(5):
+                    first = ra*7
+                    plt.scatter(xa[first:][:7], ya[first:][:7], color=[TEAL, MAGENTA, 'black', SAND, CYAN][ra], label=f"io.weight: {'10,000' if weight else '1'}", s=60)
+                    if numjob == 5 and ra == 1:
+                        if knob == "iocost2":
+                            iocost2s[experiment] = (xa[first:][:7], ya[first:][:7])
+                        else:
+                            iocost3s[experiment] = (xa[first:][:7], ya[first:][:7])
+                if numjob == 5:
+                    if knob == "iocost2":
+                        iocost2s[experiment] = (xa, ya)
+                    else:
+                        iocost3s[experiment] = (xa, ya)
+
             elif knob == "bfq2" or knob == "iolat" or knob == "iomax":            
                 xa = []
                 ya = []
@@ -120,8 +163,17 @@ for experiment in experiments:
                 mincs = 1
                 maxcs = len(xa) + 1 
                 cs = [f"{1 - ((i - mincs) / (maxcs - mincs))}" for i in range(1, len(xa)+1)]
-                plt.scatter(xa, ya, c=cs, label=f"io.weight: {'10,000' if weight else '1'}")
-        
+                plt.scatter(xa, ya, color='black', label=f"io.weight: {'10,000' if weight else '1'}", s=60)
+
+                if numjob == 5 and knob == "iolat":
+                    iolats[experiment] = (xa, ya)
+                elif numjob == 5 and knob == "iomax":
+                    iomaxs[experiment] = (xa, ya)
+                elif numjob == 5 and knob == "bfq2":
+                    if not experiment in schedulers:
+                         scheduler[experiment] = {}
+                    schedulers[experiment][knob] = (xa, ya)
+
             elif knob == "mq" or knob == "mq2":
                 l = [cgroups.IOPriorityClass.IDLE, cgroups.IOPriorityClass.RESTRICT_TO_BE, cgroups.IOPriorityClass.PROMOTE_TO_RT]
                 o = list(itertools.product(l, l))
@@ -148,23 +200,32 @@ for experiment in experiments:
                                 ya[starship].append(p99)
                         except:
                             pass
+                
+                if numjob == 5 and knob == "mq":
+                    if not experiment in schedulers:
+                         schedulers[experiment] = {}
+                    schedulers[experiment][knob] = ([], [])
+
                 for i, t in enumerate([("Lower", ROSE), ("Equal", SAND), ("Higher", TEAL)]):
                     #print(o[i], xa, ya)
                     #label = f'{o[i][0]}'.split('.')[1].split('_')[-1] + '-' + f'{o[i][1]}'.split('.')[1].split('_')[-1] 
-                    plt.scatter(xa[i], ya[i], color=t[1], label=t[0])
+                    plt.scatter(xa[i], ya[i], color=t[1], label=t[0], s=60)
+    
+                    if numjob == 5 and knob == "mq":
+                        schedulers[experiment][knob] = (schedulers[experiment][knob][0] + xa[i], schedulers[experiment][knob][1] + ya[i])
                 plt.legend(title="PC-app priority is:", ncol=1)
 
-            plt.xlim(0, 5)
+            plt.xlim(0, 2.5)
             if "_joined" in experiment:
-                plt.ylabel("PC-app Bandwidth (GiB/s)")
+                plt.ylabel("Batch-app Bandwidth (GiB/s)")
                 plt.ylim(0, 1) 
             else:
-                plt.ylabel("PC-app P99 Latency (us)")
-                plt.ylim(0, 1000 if "rq" in experiment else 1000) 
+                plt.ylabel("LC-app P99 Latency (us)")
+                plt.ylim(0, 1000 if "rq" in experiment else 200) 
                 if "mq" in knob and not "_joined" in experiment:
                     plt.ylim(0, 4000)
             plt.xlabel("Aggregated BE-app Bandwidth (GiB/s)")
-            plt.grid(axis='y')
+            plt.grid()
             # plt.xticks(rotation=45, ha='right')
 
             # Save plot       
@@ -202,3 +263,102 @@ for experiment in ["tapps", "tapps_joined", "rq", "rq_joined", "access", "access
         plt.ylim(0, 1)
 
         fig.savefig(f'./plots/merges-{experiment}-{knob}.pdf', bbox_inches="tight")
+
+
+fig, ax = plt.subplots()
+
+for name, label, color in [
+    ("tapps", "4KiB Read", TEAL), 
+    ("rq", "256KiB Read", 'black'),
+    ("rwshort", "4KiB Mixed", MAGENTA)
+    ]:
+    if name in iolats:
+        xa = iolats[name][0]
+        ya = iolats[name][1]
+        plt.scatter(xa, ya, c=color, label=label, s=60)
+plt.legend(title="BE-workload:")
+plt.xlim(0, 2.5) 
+plt.ylim(0, 1000) 
+plt.grid()
+plt.xlabel("Aggregated BE-app Bandwidth (GiB/s)")
+plt.ylabel("LC-app P99 Latency (us)")
+fig.savefig(f'./plots/iolats-merged.pdf', bbox_inches="tight")
+
+
+fig, ax = plt.subplots()
+
+for name, label, color in [
+    ("tapps", "4KiB Read", TEAL), 
+    ("rq", "256KiB Read", 'black'),
+    ("rwshort", "4KiB Mixed", MAGENTA)
+    ]:
+    if name in iomaxs:
+        xa = iomaxs[name][0]
+        ya = iomaxs[name][1]
+        plt.scatter(xa, ya, c=color, label=label, s=60)
+plt.legend(title="BE-workload:", loc='upper left')
+plt.xlim(0, 2.5) 
+plt.ylim(0, 1000) 
+plt.grid()
+plt.xlabel("Aggregated BE-app Bandwidth (GiB/s)")
+plt.ylabel("LC-app P99 Latency (us)")
+fig.savefig(f'./plots/iomaxs-merged.pdf', bbox_inches="tight")
+
+
+fig, ax = plt.subplots()
+
+plt.scatter(schedulers['tapps']['mq'][0], schedulers['tapps']['mq'][1], color=TEAL, label='MQ-DL + io.prio.class', s=60)
+plt.scatter(schedulers['tapps']['bfq2'][0], schedulers['tapps']['bfq2'][1], color=MAGENTA, label='BFQ + io.bfq.weight', s=60)
+
+plt.legend()
+plt.xlim(0, 2.5) 
+plt.ylim(0, 1000) 
+plt.grid()
+plt.xlabel("Aggregated BE-app Bandwidth (GiB/s)")
+plt.ylabel("LC-app P99 Latency (us)")
+fig.savefig(f'./plots/schedulers-merged.pdf', bbox_inches="tight")
+
+fig, ax = plt.subplots()
+
+plt.scatter(schedulers['tapps_joined']['mq'][0], schedulers['tapps_joined']['mq'][1], color=TEAL, label='MQ-DL + io.prio.class', s=60)
+plt.scatter(schedulers['tapps_joined']['bfq2'][0], schedulers['tapps_joined']['bfq2'][1], color=MAGENTA, label='BFQ + io.bfq.weight', s=60)
+
+plt.legend()
+plt.xlim(0, 2.5) 
+plt.ylim(0, 1) 
+plt.grid()
+plt.xlabel("Aggregated BE-app Bandwidth (GiB/s)")
+plt.ylabel("Batch-app Bandwidth (GiB/s)")
+fig.savefig(f'./plots/schedulers-joined-merged.pdf', bbox_inches="tight")
+
+
+
+fig, ax = plt.subplots()
+
+plt.scatter(iocost2s['tapps_joined'][0], iocost2s['tapps_joined'][1], color=TEAL, label='4KiB read', s=60)
+plt.scatter(iocost2s['rq_joined'][0], iocost2s['rq_joined'][1], color=MAGENTA, label='256KiB read', s=60)
+#plt.scatter(iocost2s['access_joined'][0], iocost2s['access_joined'][1], color=SAND, label='BFQ + io.bfq.weight', s=60)
+plt.scatter(iocost2s['rwshort_joined'][0], iocost2s['rwshort_joined'][1], color=SAND, label='4KiB write', s=60)
+
+plt.legend()
+plt.xlim(0, 2.5) 
+plt.ylim(0, 1) 
+plt.grid()
+plt.xlabel("Aggregated BE-app Bandwidth (GiB/s)")
+plt.ylabel("Batch-app Bandwidth (GiB/s)")
+fig.savefig(f'./plots/iocost2s-joined-merged.pdf', bbox_inches="tight")
+
+fig, ax = plt.subplots()
+
+plt.scatter(iocost3s['tapps'][0], iocost3s['tapps'][1], color=TEAL, label='4KiB read', s=60)
+plt.scatter(iocost3s['rq'][0], iocost3s['rq'][1], color=MAGENTA, label='256KiB read', s=60)
+#plt.scatter(iocost2s['access_joined'][0], iocost2s['access_joined'][1], color=SAND, label='BFQ + io.bfq.weight', s=60)
+plt.scatter(iocost3s['rwshort'][0], iocost3s['rwshort'][1], color=SAND, label='4KiB write', s=60)
+
+plt.legend()
+plt.xlim(0, 2.5) 
+plt.ylim(0, 1000) 
+plt.grid()
+plt.xlabel("Aggregated BE-app Bandwidth (GiB/s)")
+plt.ylabel("LC-app P99 Latency (us)")
+fig.savefig(f'./plots/iocost3s-joined-merged.pdf', bbox_inches="tight")

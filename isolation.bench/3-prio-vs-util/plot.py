@@ -41,6 +41,7 @@ iolats = {}
 iomaxs = {}
 schedulers = {}
 iocost2s = {}
+iocost3s = {}
 
 experiments = ["tapps", "rq", "access", "rwshort", "rwlong"]
 for i in range(len(experiments)):
@@ -99,11 +100,11 @@ for experiment in experiments:
             
                 
                 plt.legend()
-            elif knob == "iocost2":            
+            elif knob == "iocost2" or knob == "iocost3":            
                 xa = []
                 ya = []
                 
-                for i in range(0, 21, 1):
+                for i in range(0, 35, 1):
                     filename = f'./out/{nvme_device.eui}/{experiment}-{knob}-{numjob}-{i}.json'
                     try:
                         js = parse_fio(filename)
@@ -122,15 +123,21 @@ for experiment in experiments:
                         pass
                 print(xa, ya)
                 
-                for ra in range(3):
+                for ra in range(5):
                     first = ra*7
-                    plt.scatter(xa[first:][:7], ya[first:][:7], color=[TEAL, MAGENTA, 'black'][ra], label=f"io.weight: {'10,000' if weight else '1'}", s=60)
+                    plt.scatter(xa[first:][:7], ya[first:][:7], color=[TEAL, MAGENTA, 'black', SAND, CYAN][ra], label=f"io.weight: {'10,000' if weight else '1'}", s=60)
                     if numjob == 5 and ra == 1:
-                        iocost2s[experiment] = (xa[first:][:7], ya[first:][:7])
-                #if numjob == 5:
-                #    iocost2s[experiment] = (xa, ya)
+                        if knob == "iocost2":
+                            iocost2s[experiment] = (xa[first:][:7], ya[first:][:7])
+                        else:
+                            iocost3s[experiment] = (xa[first:][:7], ya[first:][:7])
+                if numjob == 5:
+                    if knob == "iocost2":
+                        iocost2s[experiment] = (xa, ya)
+                    else:
+                        iocost3s[experiment] = (xa, ya)
 
-            elif knob == "bfq2" or knob == "iolat" or knob == "iomax" or knob == "iocost3":            
+            elif knob == "bfq2" or knob == "iolat" or knob == "iomax":            
                 xa = []
                 ya = []
                 
@@ -328,8 +335,6 @@ fig.savefig(f'./plots/schedulers-joined-merged.pdf', bbox_inches="tight")
 
 fig, ax = plt.subplots()
 
-print(iocost2s)
-
 plt.scatter(iocost2s['tapps_joined'][0], iocost2s['tapps_joined'][1], color=TEAL, label='4KiB read', s=60)
 plt.scatter(iocost2s['rq_joined'][0], iocost2s['rq_joined'][1], color=MAGENTA, label='256KiB read', s=60)
 #plt.scatter(iocost2s['access_joined'][0], iocost2s['access_joined'][1], color=SAND, label='BFQ + io.bfq.weight', s=60)
@@ -342,3 +347,18 @@ plt.grid()
 plt.xlabel("Aggregated BE-app Bandwidth (GiB/s)")
 plt.ylabel("Batch-app Bandwidth (GiB/s)")
 fig.savefig(f'./plots/iocost2s-joined-merged.pdf', bbox_inches="tight")
+
+fig, ax = plt.subplots()
+
+plt.scatter(iocost3s['tapps'][0], iocost3s['tapps'][1], color=TEAL, label='4KiB read', s=60)
+plt.scatter(iocost3s['rq'][0], iocost3s['rq'][1], color=MAGENTA, label='256KiB read', s=60)
+#plt.scatter(iocost2s['access_joined'][0], iocost2s['access_joined'][1], color=SAND, label='BFQ + io.bfq.weight', s=60)
+plt.scatter(iocost3s['rwshort'][0], iocost3s['rwshort'][1], color=SAND, label='4KiB write', s=60)
+
+plt.legend()
+plt.xlim(0, 2.5) 
+plt.ylim(0, 1000) 
+plt.grid()
+plt.xlabel("Aggregated BE-app Bandwidth (GiB/s)")
+plt.ylabel("LC-app P99 Latency (us)")
+fig.savefig(f'./plots/iocost3s-joined-merged.pdf', bbox_inches="tight")

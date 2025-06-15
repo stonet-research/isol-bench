@@ -55,6 +55,9 @@ def resolve_path(knob, active, jobs, cgroups_active):
 def to_one_digit(v):
         return round(v*10)/10 
 
+def equalize_label_len(knob, maxknob, value):
+    return f"{knob}: {value}"
+
 def plot_cdf(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, lat_stat = "sar"):
     """ Plot a CDF plot of the latency """
     
@@ -78,6 +81,12 @@ def plot_cdf(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
 
             if jobs >= 128:
                 ax.annotate(f'{PLOT_ELEMENTS[knob]}: {to_one_digit(v[-4] / 1000)}', xy=(6200, 0.99), xytext=(5700, 0.55-0.1*i), arrowprops = dict(facecolor ='black',
+                                shrink = 0.05) if i == 0 else None,)
+            elif jobs == 16:
+                labl = equalize_label_len(PLOT_ELEMENTS[knob], "io.latency",to_one_digit(v[-4])) 
+                if knob == "iocost" or knob == "mq" or knob =="bfq3":
+                    labl = equalize_label_len(PLOT_ELEMENTS[knob], "io.cost",to_one_digit(v[-4])) 
+                ax.annotate(f'{labl}', xy=(v[-4], 0.99), xytext=(150 + ( (i // 3) * 560), 0.60-0.1*i + (0.3 * (i // 3))), arrowprops = dict(facecolor ='black',
                                 shrink = 0.05) if i == 0 else None,)
             else:
                 ax.annotate(f'{PLOT_ELEMENTS[knob]}: {to_one_digit(v[-4])}', xy=(v[-4], 0.99), xytext=(190 + ( (i // 3) * 550), 0.80-0.1*i + (0.3 * (i // 3))), arrowprops = dict(facecolor ='black',
@@ -173,7 +182,7 @@ def plot_cpu_metrics(nvme_drive, knobs_to_plot):
 
 def main(knobs_to_plot, nvme_drive):
     set_standard_font()
-    for active in [True, False]:
+    for active in [False, True]:
         for cgroups_active in [True, False]:
             for lat_stat in ["fio", "sar", "pidstat"]:
                 plot_cpu(nvme_drive, knobs_to_plot, active, cgroups_active, lat_stat)

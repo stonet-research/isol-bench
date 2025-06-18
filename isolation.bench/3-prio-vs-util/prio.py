@@ -108,7 +108,7 @@ def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgro
     major_minor = nvme_device.major_minor
 
     #lats = [10, 70, 100, 200, 500]
-    lats = list(range(25, 1150, 25))
+    lats = list(range(75, 1200, 25))
     lat = lats[point % len(lats)]
     print(f"Using latency target={lat}")
     exp_cgroups[0].iolatency = cgroups.IOLatency(major_minor, lat)
@@ -148,7 +148,7 @@ def iocost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgr
 def iocost2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
     min_scalings = [95, 75, 50, 25, 10]
     min_scaling = min_scalings[point // 7]
-    read_target = 1_000_000
+    read_target = 500
     weights = [1/1000, 1/4, 1, 10, 100, 1000, 10_000]
     weight = weights[point % 7]
     lc_weight = int(weight if weight >= 1 else 1)
@@ -253,7 +253,7 @@ def tapps_job_joined(sjob, i):
 def rq_job(sjob, i):
     if i == 0:
         return sjob 
-    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][i % 2])
+    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -262,7 +262,7 @@ def rq_job(sjob, i):
     return sjob
 
 def rq_job_joined(sjob, i):
-    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][i % 2])
+    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -273,7 +273,7 @@ def rq_job_joined(sjob, i):
 def access_job(sjob, i):
     if i == 0:
         return sjob 
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.SEQ_READ][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.SEQ_READ][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -282,7 +282,7 @@ def access_job(sjob, i):
     return sjob
 
 def access_job_joined(sjob, i):
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.SEQ_READ][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.SEQ_READ][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -293,7 +293,7 @@ def access_job_joined(sjob, i):
 def rw_short_job(sjob, i):
     if i == 0:
         return sjob 
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -308,7 +308,7 @@ def rw_short_job(sjob, i):
     return sjob
 
 def rw_short_job_joined(sjob, i):
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -329,7 +329,7 @@ def rw_long_job(sjob, i):
             toption
         ])
         return sjob 
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.RAN_WRITE][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.RAN_WRITE][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -340,7 +340,7 @@ def rw_long_job(sjob, i):
 
 def rw_long_job_joined(sjob, i):
     toption = fio.TimedOption('20s', '10m')
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.RAN_WRITE][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.RAN_WRITE][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -364,7 +364,7 @@ EXPERIMENTS = {
     "rwshort_joined": Experiment("rwshort_joined", rw_short_job_joined),
     # GC
     "rwlong": Experiment("rwlong", rw_long_job),
-    "rwlong_joined": Experiment("rwlong_joined", rw_long_job),
+    "rwlong_joined": Experiment("rwlong_joined", rw_long_job_joined),
 }
 
 def find_isolation(knobs_to_test: list[IOKnob]):

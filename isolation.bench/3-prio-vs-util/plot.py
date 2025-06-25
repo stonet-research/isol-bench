@@ -106,7 +106,7 @@ for experiment in experiments:
             
                 
                 plt.legend()
-            elif knob == "iocost2":            
+            elif knob == "iocost2" or knob == "iocost3":            
                 xa = []
                 ya = []
                 

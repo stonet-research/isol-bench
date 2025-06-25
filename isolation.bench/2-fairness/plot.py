@@ -140,6 +140,8 @@ for experiment, weighted in [
                     jains2 = jains_fairness_index_weighted(vsag, weights)
                     suby.append(jains2)
                     bwsum = sum(vs) / (1024 * 1024)
+                    if "request" in experiment or "mixed" in experiment:
+                        print(knob, sum(vs[:4]), sum(vs[4:]), vs)
                     subyb.append(bwsum)
                 except:
                     pass                
@@ -191,8 +193,10 @@ for experiment, weighted in [
                         yo.append(yy)
                         yoe.append(yye)
                 else:
-                    fig.savefig(f'./plots/bw-{experiment}-{numjobs}-{name}.pdf', bbox_inches="tight")
-                
+                    set_font(70)
+                    fig.savefig(f'./plots/bw-{experiment}-{numjobs}-{name}-enlarged.pdf', bbox_inches="tight")
+                    set_font(21)
+
 fig, axes = plt.subplots(1, 3, sharex=True, sharey=True)
 colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA]
 
@@ -210,4 +214,3 @@ axes[0].set(ylabel="Jain's fairness")
 # Save plot       
 os.makedirs(f'./plots', exist_ok = True)
 fig.savefig(f'./plots/merged.pdf', bbox_inches="tight")
-

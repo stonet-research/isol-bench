@@ -108,7 +108,7 @@ def iolat_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgro
     major_minor = nvme_device.major_minor
 
     #lats = [10, 70, 100, 200, 500]
-    lats = list(range(25, 1150, 25))
+    lats = list(range(75, 1200, 25))
     lat = lats[point % len(lats)]
     print(f"Using latency target={lat}")
     exp_cgroups[0].iolatency = cgroups.IOLatency(major_minor, lat)
@@ -148,7 +148,7 @@ def iocost_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgr
 def iocost2_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
     min_scalings = [95, 75, 50, 25, 10]
     min_scaling = min_scalings[point // 7]
-    read_target = 1_000_000
+    read_target = 500
     weights = [1/1000, 1/4, 1, 10, 100, 1000, 10_000]
     weight = weights[point % 7]
     lc_weight = int(weight if weight >= 1 else 1)
@@ -183,6 +183,44 @@ def iocost3_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cg
     for i in range(1, len(exp_cgroups)):
         exp_cgroups[i].ioweight = cgroups.IOWeight("default", be_weight)
 
+def iocost4_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
+    min_scalings = list(range(1, 99, 3))
+    min_scaling = min_scalings[point]
+    read_target = 500
+    weight = 10_000
+    lc_weight = int(weight if weight >= 1 else 1)
+    be_weight = int(1 if weight >= 1 else (1 // weight))
+
+    # We focus on bandwidth here, so sacrifice latency, we do not need it as a sign of congestion as it complicates matters 
+    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 99.00, read_target, 95.00, 1_000_000, min_scaling, 150.00)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device, False, 1)
+    cgroups.set_iocost(model, qos)
+
+    print(f"Using weight={lc_weight}/{be_weight} model_amplifier=1 read_target_us={read_target} min_scaling={min_scaling}%")
+    exp_cgroups[0].ioweight = cgroups.IOWeight("default", lc_weight)
+    for i in range(1, len(exp_cgroups)):
+        exp_cgroups[i].ioweight = cgroups.IOWeight("default", be_weight)
+
+def iocost5_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
+    min_scaling = 90
+    read_target = 1_000_000
+    weights = [1 / (x*500) for x in range(1, 20)] + [1] + [x*500 for x in range(1, 20)]
+    weight = weights[point]
+    lc_weight = int(weight if weight >= 1 else 1)
+    be_weight = int(1 if weight >= 1 else (1 // weight))
+
+    # We focus on bandwidth here, so sacrifice latency, we do not need it as a sign of congestion as it complicates matters 
+    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 99.00, read_target, 95.00, 1_000_000, min_scaling, 150.00)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device, False, 1)
+    cgroups.set_iocost(model, qos)
+
+    print(f"Using weight={lc_weight}/{be_weight} model_amplifier=1 read_target_us={read_target} min_scaling={min_scaling}%")
+    exp_cgroups[0].ioweight = cgroups.IOWeight("default", lc_weight)
+    for i in range(1, len(exp_cgroups)):
+        exp_cgroups[i].ioweight = cgroups.IOWeight("default", be_weight)
+
+
+
 def setup_cgroups() -> list[cgroups.Cgroup]:
     lc_g = cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_LC_PREAMBLE}.slice")
     be_g = cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_BE_PREAMBLE}.slice")
@@ -201,6 +239,7 @@ def setup_gjob(device_name: str) -> fio.FioGlobalJob:
         fio.ConcurrentWorkerOption(1),
         fio.TimedOption('20s', '30s'),
         fio.AllowedCPUsOption(CORES),
+        fio.ExitAll(),
     ])
     return gjob
 
@@ -231,6 +270,8 @@ IO_KNOBS = {
     "iocost": IOKnob("iocost", 45, iocost_configure_cgroups), # 54
     "iocost2": IOKnob("iocost2", 35, iocost2_configure_cgroups),
     "iocost3": IOKnob("iocost3", 35, iocost3_configure_cgroups),
+    "iocost4": IOKnob("iocost4", 33, iocost4_configure_cgroups),
+    "iocost5": IOKnob("iocost5", 39, iocost5_configure_cgroups),
 }
 
 def tapps_job(sjob, i):
@@ -253,7 +294,7 @@ def tapps_job_joined(sjob, i):
 def rq_job(sjob, i):
     if i == 0:
         return sjob 
-    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][i % 2])
+    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -262,7 +303,7 @@ def rq_job(sjob, i):
     return sjob
 
 def rq_job_joined(sjob, i):
-    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][i % 2])
+    soption = fio.RequestSizeOption(["4096", f"{1024 * 128}"][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -273,7 +314,7 @@ def rq_job_joined(sjob, i):
 def access_job(sjob, i):
     if i == 0:
         return sjob 
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.SEQ_READ][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.SEQ_READ][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -282,7 +323,7 @@ def access_job(sjob, i):
     return sjob
 
 def access_job_joined(sjob, i):
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.SEQ_READ][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.SEQ_READ][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -293,7 +334,7 @@ def access_job_joined(sjob, i):
 def rw_short_job(sjob, i):
     if i == 0:
         return sjob 
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -308,7 +349,7 @@ def rw_short_job(sjob, i):
     return sjob
 
 def rw_short_job_joined(sjob, i):
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.MIXED][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -329,7 +370,7 @@ def rw_long_job(sjob, i):
             toption
         ])
         return sjob 
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.RAN_WRITE][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.RAN_WRITE][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -340,7 +381,7 @@ def rw_long_job(sjob, i):
 
 def rw_long_job_joined(sjob, i):
     toption = fio.TimedOption('20s', '10m')
-    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.RAN_WRITE][i%2])
+    joption = fio.JobOption([fio.JobWorkload.RAN_READ, fio.JobWorkload.RAN_WRITE][1 if i !=0 else 0])
     qoption =  fio.QDOption(256)
     sjob.add_options([
         qoption,
@@ -364,7 +405,7 @@ EXPERIMENTS = {
     "rwshort_joined": Experiment("rwshort_joined", rw_short_job_joined),
     # GC
     "rwlong": Experiment("rwlong", rw_long_job),
-    "rwlong_joined": Experiment("rwlong_joined", rw_long_job),
+    "rwlong_joined": Experiment("rwlong_joined", rw_long_job_joined),
 }
 
 def find_isolation(knobs_to_test: list[IOKnob]):

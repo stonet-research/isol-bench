@@ -29,40 +29,24 @@ done
 7. Reads+GC: Try various mixes of reads and writes.
 
 
+Final results with:
+
 ```bash
-# 1
-python3 fairness.py --experiment=unsaturated
-# 2
-python3 fairness.py --experiment=saturated
-# 3
-python3 fairness.py --experiment=saturatedunfair
-# 4
-python3 fairness.py --experiment=saturatedw
-# 5
-python3 fairness.py --experiment=requestsize
-python3 fairness.py --experiment=requestsizelarge
-python3 fairness.py --experiment=requestsizew # < if time permits, run this one as well
-# 6
-python3 fairness.py --experiment=ranwrite
-python3 fairness.py --experiment=ranwritew # < if time permits
-# 7
-python3 fairness.py --experiment=mixedwrite
-python3 fairness.py --experiment=mixed90write
-python3 fairness.py --experiment=mixedwrite3
-python3 fairness.py --experiment=mixedwrite3w # < if time permits
+python3 fairness.py --numjobs=2 --saturatedspam=1 --saturatedspamw=1 --requestsizelargespam=1 --mixedreadspam=1 --fromiter=0 --iter=5 --none=1 --mq=1 --bfq2=1  --iocost=1  --iomax=1 --iolat=1
+python3 fairness.py --numjobs=16 --saturatedspam=1 --saturatedspamw=1 --fromiter=0 --iter=5 --none=1 --mq=1 --bfq2=1  --iocost=1  --iomax=1 --iolat=1
 ```
 
 Debug helpers:
 ```bash
 # iocost
-grep . /sys/fs/cgroup/{io.cost*,example-workload-{0..256}.slice/io.weight}
+grep . /sys/fs/cgroup/{io.cost*,example-workload-{0..16}.slice/io.weight}
 # bfq and mq
 cat /sys/block/nvme*/queue/scheduler
-grep . /sys/fs/cgroup/{example-workload-{0..256}.slice/{io.bfq.weight, io.prio.class}}
+grep . /sys/fs/cgroup/{example-workload-{0..16}.slice/{io.bfq.weight, io.prio.class}}
 # iolat
-grep . /sys/fs/cgroup/{example-workload-{0..256}.slice/io.latency}
+grep . /sys/fs/cgroup/{example-workload-{0..16}.slice/io.latency}
 # iomax
-grep . /sys/fs/cgroup/{example-workload-{0..256}.slice/io.max}
+grep . /sys/fs/cgroup/{example-workload-{0..16}.slice/io.max}
 ```
 
 # Analyze and plot

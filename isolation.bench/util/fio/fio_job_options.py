@@ -91,6 +91,12 @@ class GroupReportingOption(FioOption):
     def to_opt(self) -> [(str, str)]:
         return [("group_reporting", fio_truthy(self.yes))]
 
+@dataclass
+class NameOption(FioOption):
+    name: str 
+
+    def to_opt(self) -> [(str, str)]:
+        return [("name", self.name)]
 
 @dataclass
 class ThreadOption(FioOption):
@@ -321,6 +327,13 @@ class ExitAll(FioOption):
             ("exitall", "1"),
             ("exit_what", "stonewall")
         ]
+      
+@dataclass
+class PrioClassOption(FioOption):
+    prio: str
+
+    def to_opt(self) -> [(str, str)]:
+        return [("prioclass", self.prio)]
 
 # Enumerated types
 @dataclass

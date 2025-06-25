@@ -57,10 +57,27 @@ yo = []
 yoe = []
 
 for experiment, weighted in [
+        ("mixedwrite3spam", False),
+        ("unsaturated", False),  
+        ("unsaturatedw", True),  
+        ("saturated", False),  
         ("saturatedspam", False),  
+        ("saturatedw", True), 
         ("saturatedspamw", True), 
-        ("requestsizelargespam", False),  
-        ("mixedwrite3spam", False),  
+        ("requestsize", False),
+        ("requestsizew", True),
+        ("requestsizelarge", False),
+        ("requestsizelargespam", False),
+        ("seqread", False),
+        ("mixedread", False),
+        ("mixedreadspam", False),
+        ("ranwrite", False),
+        ("mixedwrite", False),
+        ("mixed90write", False),
+        ("mixedwrite3", False),
+        ("mixedwrite2spam", False),
+        ("mixedwrite2", False),
+        ("requestsizerange", False),
     ]:
     print(f"EXPERIMENT {experiment}")
     print('----------------------------------------------------------')

@@ -183,6 +183,44 @@ def iocost3_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cg
     for i in range(1, len(exp_cgroups)):
         exp_cgroups[i].ioweight = cgroups.IOWeight("default", be_weight)
 
+def iocost4_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
+    min_scalings = list(range(1, 99, 3))
+    min_scaling = min_scalings[point]
+    read_target = 500
+    weight = 10_000
+    lc_weight = int(weight if weight >= 1 else 1)
+    be_weight = int(1 if weight >= 1 else (1 // weight))
+
+    # We focus on bandwidth here, so sacrifice latency, we do not need it as a sign of congestion as it complicates matters 
+    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 99.00, read_target, 95.00, 1_000_000, min_scaling, 150.00)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device, False, 1)
+    cgroups.set_iocost(model, qos)
+
+    print(f"Using weight={lc_weight}/{be_weight} model_amplifier=1 read_target_us={read_target} min_scaling={min_scaling}%")
+    exp_cgroups[0].ioweight = cgroups.IOWeight("default", lc_weight)
+    for i in range(1, len(exp_cgroups)):
+        exp_cgroups[i].ioweight = cgroups.IOWeight("default", be_weight)
+
+def iocost5_configure_cgroups(nvme_device: nvme.NVMeDevice, exp_cgroups: list[cgroups.Cgroup], point: int):
+    min_scaling = 90
+    read_target = 1_000_000
+    weights = [1 / (x*500) for x in range(1, 20)] + [1] + [x*500 for x in range(1, 20)]
+    weight = weights[point]
+    lc_weight = int(weight if weight >= 1 else 1)
+    be_weight = int(1 if weight >= 1 else (1 // weight))
+
+    # We focus on bandwidth here, so sacrifice latency, we do not need it as a sign of congestion as it complicates matters 
+    qos = cgroups.IOCostQOS(nvme_device.major_minor, True,'user', 99.00, read_target, 95.00, 1_000_000, min_scaling, 150.00)
+    model = cgroups.get_iocostmodel_from_nvme_model(nvme_device, False, 1)
+    cgroups.set_iocost(model, qos)
+
+    print(f"Using weight={lc_weight}/{be_weight} model_amplifier=1 read_target_us={read_target} min_scaling={min_scaling}%")
+    exp_cgroups[0].ioweight = cgroups.IOWeight("default", lc_weight)
+    for i in range(1, len(exp_cgroups)):
+        exp_cgroups[i].ioweight = cgroups.IOWeight("default", be_weight)
+
+
+
 def setup_cgroups() -> list[cgroups.Cgroup]:
     lc_g = cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_LC_PREAMBLE}.slice")
     be_g = cgroups.create_cgroup(f"{EXPERIMENT_CGROUP_BE_PREAMBLE}.slice")
@@ -201,6 +239,7 @@ def setup_gjob(device_name: str) -> fio.FioGlobalJob:
         fio.ConcurrentWorkerOption(1),
         fio.TimedOption('20s', '30s'),
         fio.AllowedCPUsOption(CORES),
+        fio.ExitAll(),
     ])
     return gjob
 
@@ -231,6 +270,8 @@ IO_KNOBS = {
     "iocost": IOKnob("iocost", 45, iocost_configure_cgroups), # 54
     "iocost2": IOKnob("iocost2", 35, iocost2_configure_cgroups),
     "iocost3": IOKnob("iocost3", 35, iocost3_configure_cgroups),
+    "iocost4": IOKnob("iocost4", 33, iocost4_configure_cgroups),
+    "iocost5": IOKnob("iocost5", 39, iocost5_configure_cgroups),
 }
 
 def tapps_job(sjob, i):

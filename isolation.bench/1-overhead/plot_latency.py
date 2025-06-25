@@ -84,6 +84,9 @@ def plot_cdf(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
                                 shrink = 0.05) if i == 0 else None,)
             i = i + 1
 
+            if cgroups_active and lat_stat == "sar":
+                print(f"<<< {knob}, {x}, {v[-4]}")
+
         if jobs >= 128:
             plt.xticks(range(0, 10000, 1000), ['0'] + [f'{xx},000' for xx in range(1,10)])
             plt.xticks(range(0, 11000, 1000), ['0'] + [f'{xx}' for xx in range(1,11)])
@@ -128,6 +131,8 @@ def plot_cpu(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
                 raise ValueError("lat_stat not implemented")
             y.append(v)
         lines.append((knob, y))
+        if cgroups_active and lat_stat == "sar":
+            print(f">>> {knob}, {y}")
 
     # Plot data
     colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA]
@@ -138,6 +143,7 @@ def plot_cpu(nvme_drive, knobs_to_plot, active = True, cgroups_active = True, la
         plt.plot(x, y, label=PLOT_ELEMENTS[name], linewidth=4, linestyle='solid', marker=markers[i], color=colors[i], markersize=8)
         i = i + 1
     plt.xticks(range(len(NUMJOBS) + 1), [0] + NUMJOBS)
+    ax.set_xticklabels([0] + NUMJOBS, rotation=45)
     plt.xlim(0, len(NUMJOBS) + 1)    
     plt.yticks([0, 0.25, 0.5, 0.75, 1.00], [0, 25, 50, 75, 100])
     plt.ylim(0, 1.1)
@@ -173,9 +179,9 @@ def plot_cpu_metrics(nvme_drive, knobs_to_plot):
 
 def main(knobs_to_plot, nvme_drive):
     set_standard_font()
-    for active in [True, False]:
-        for cgroups_active in [True, False]:
-            for lat_stat in ["fio", "sar", "pidstat"]:
+    for active in [False]:
+        for cgroups_active in [True]:
+            for lat_stat in ["sar"]:
                 plot_cpu(nvme_drive, knobs_to_plot, active, cgroups_active, lat_stat)
                 plot_cdf(nvme_drive, knobs_to_plot, active, cgroups_active, lat_stat)
     plot_cpu_metrics(nvme_drive, knobs_to_plot)

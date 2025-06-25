@@ -293,6 +293,15 @@ class RWMixRatioOption(FioOption):
     def to_opt(self) -> [(str, str)]:
         return [("rwmixread", self.ratio)]
 
+@dataclass
+class ExitAll(FioOption):
+
+    def to_opt(self) -> [(str, str)]:
+        return [
+            ("exitall", "1"),
+            ("exit_what", "stonewall")
+        ]
+
 # Enumerated types
 @dataclass
 class JobOption(FioOption):

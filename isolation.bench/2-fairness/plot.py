@@ -57,24 +57,14 @@ yo = []
 yoe = []
 
 for experiment, weighted in [
-        ("unsaturated", False),  
-        ("unsaturatedw", True),  
-        ("saturated", False),  
-        ("saturatedw", True), 
-        ("requestsize", False),
-        ("requestsizew", True),
-        ("requestsizelarge", False),
-        ("seqread", False),
-        ("mixedread", False),
-        ("ranwrite", False),
-        ("mixedwrite", False),
-        ("mixed90write", False),
-        ("mixedwrite3", False),
-        ("requestsizerange", False),
+        ("saturatedspam", False),  
+        ("saturatedspamw", True), 
+        ("requestsizelargespam", False),  
+        ("mixedwrite3spam", False),  
     ]:
     print(f"EXPERIMENT {experiment}")
     print('----------------------------------------------------------')
-    numjobss = [8, 16, 32, 64, 128, 256] if not "write" in experiment else [256]
+    numjobss = [2, 8, 16, 32, 64, 128, 256]
     if "unsaturated" in experiment:
         numjobss = [2, 4]
     for numjobs in numjobss:
@@ -93,31 +83,48 @@ for experiment, weighted in [
                 filename = f'./out/{nvme_device.eui}/{experiment}-{knob}-{numjobs}-{it}.json'
                 try:
                     js = parse_fio(filename)
-                
+
+                    # Parse 
                     vs = [float(j['read']['bw_mean']) + float(j['write']['bw_mean'])for j in js['jobs']]
-                    weights =  list(range(1, len(vs) +1)) if weighted else len(vs) * [1] 
-                    rates = [isol[knob]['randread'] for _ in range(len(weights))]
-                    for i in range(len(rates)):
-                        if 'bs' in js['jobs'][i]['job options'] and '65536' in js['jobs'][i]['job options']['bs']:
-                            rates[i] = isol[knob]['64k']
-                        elif 'bs' in js['jobs'][i]['job options'] and '262' in js['jobs'][i]['job options']['bs']:
-                            rates[i] = isol[knob]['256k']
-                        elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'read':
-                            rates[i] = isol[knob]['seqread']
-                        elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'randwrite':
-                            rates[i] = isol[knob]['randwrite']
-                        elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'randrw':
-                            rates[i] = isol[knob]['mixed']
-                            if 'rwmixread' in js['jobs'][i]['job options']:
-                                rates[i] = isol[knob]['mixed90']  
+                    if experiment == "mixedwrite2":
+                        print(knob, vs, print(len(js['jobs'])))
+                    weights =  list(range(1, numjobs +1)) if weighted else numjobs * [1] 
+                    
+                    vsag = []
+                    if len(vs) != len(weights):
+                        jump = len(vs) / len(weights)
+                        vsag = len(weights) * [0]
+                        for i in range(len(vs)):
+                            vsag[int(i // jump)] = vsag[int(i // jump)] + vs[i]
+                    else:
+                        vsag = vs
+                        
                     try:
-                        jains = proportional_slowdown_jains(vs, weights, rates)
+                        rates = [isol[knob]['randread'] for _ in range(len(weights))]
+                        for i in range(len(rates)):
+                            if 'bs' in js['jobs'][i]['job options'] and '65536' in js['jobs'][i]['job options']['bs']:
+                                rates[i] = isol[knob]['64k']
+                            elif 'bs' in js['jobs'][i]['job options'] and '262' in js['jobs'][i]['job options']['bs']:
+                                rates[i] = isol[knob]['256k']
+                            elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'read':
+                                rates[i] = isol[knob]['seqread']
+                            elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'randwrite':
+                                rates[i] = isol[knob]['randwrite']
+                            elif 'rw' in js['jobs'][i]['job options'] and js['jobs'][i]['job options']['rw'] == 'randrw':
+                                rates[i] = isol[knob]['mixed']
+                                if 'rwmixread' in js['jobs'][i]['job options']:
+                                    rates[i] = isol[knob]['mixed90']  
+                        if experiment == "mixedwrite2":
+                            print(knob, vsag, weights, rates)  
+                        jains = proportional_slowdown_jains(vsag, weights, rates)
                         subyp.append(jains)
                     except:
                         subyp.append(0)
-                    jains2 = jains_fairness_index_weighted(vs, weights)
+                    jains2 = jains_fairness_index_weighted(vsag, weights)
                     suby.append(jains2)
                     bwsum = sum(vs) / (1024 * 1024)
+                    if "request" in experiment or "mixed" in experiment:
+                        print(knob, sum(vs[:4]), sum(vs[4:]), vs)
                     subyb.append(bwsum)
                 except:
                     pass                
@@ -169,8 +176,10 @@ for experiment, weighted in [
                         yo.append(yy)
                         yoe.append(yye)
                 else:
-                    fig.savefig(f'./plots/bw-{experiment}-{numjobs}-{name}.pdf', bbox_inches="tight")
-                
+                    set_font(70)
+                    fig.savefig(f'./plots/bw-{experiment}-{numjobs}-{name}-enlarged.pdf', bbox_inches="tight")
+                    set_font(21)
+
 fig, axes = plt.subplots(1, 3, sharex=True, sharey=True)
 colors = ['black', ROSE, CYAN, SAND, TEAL, MAGENTA]
 
@@ -188,4 +197,3 @@ axes[0].set(ylabel="Jain's fairness")
 # Save plot       
 os.makedirs(f'./plots', exist_ok = True)
 fig.savefig(f'./plots/merged.pdf', bbox_inches="tight")
-

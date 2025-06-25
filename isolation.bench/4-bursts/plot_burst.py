@@ -47,6 +47,7 @@ for i, knob in enumerate(["none", "iomax", "iolat", "iocost", "bfq2"]):
     y = y[:5000]
         
     plt.plot(x, [yy / 1000 for yy in y], color=["black", ROSE, CYAN, SAND, TEAL][i], label=knob)            
+    print(knob, y[:30])
     plt.legend()
 
     #plt.xlim(0, 2.5)
@@ -69,6 +70,7 @@ for i, knob in enumerate(["iocost", "iomax", "iolat", "none", "bfq2"]):
     y = y[:5000]
         
     plt.plot(x, [yy / 1024 for yy in y], color=["black", ROSE, CYAN, SAND, TEAL][i], label=knob)            
+    print(knob, y[:30])
     plt.legend()
 
     #plt.xlim(0, 2.5)

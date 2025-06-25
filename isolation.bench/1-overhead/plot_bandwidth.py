@@ -86,6 +86,8 @@ def plot_cpu(knobs_to_plot, numdisks, cgroups_active = True, lat_stat = "sar"):
     for (name, y) in lines:    
         plt.plot(x, y, label=PLOT_ELEMENTS[name], linewidth=4, linestyle='solid', marker=markers[i], color=colors[i], markersize=8)
         i = i + 1
+        if numdisks == 1 and lat_stat == "sar":
+            print(f"{name}, {y[-1]}")
 
     plt.hlines(y=10, xmin=0, xmax=10000, linewidth=2, color='r')
     plt.xticks(range(len(NUMJOBS) + 1), [0] + NUMJOBS)
@@ -121,6 +123,9 @@ def plot_bw(knobs_to_plot, numdisks, cgroups_active = True, lat_stat = "sar"):
             y.append(v)
             ys.append(vs)
         lines.append((knob, y, ys))
+    
+        if numdisks == 1 and lat_stat == "sar" and cgroups_active:
+            print(f"{knob}, {max(y)}")
 
     # Plot data
     fig, ax = plt.subplots()

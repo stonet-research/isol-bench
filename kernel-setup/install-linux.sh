@@ -15,7 +15,7 @@ pushd linux-6.9-rc7
 git checkout v6.9-rc7
 
 # Compile
-cp ../config-socc .config
+cp ../config-iiswc-2025 .config
 scripts/config --disable SYSTEM_TRUSTED_KEYS
 scripts/config --disable SYSTEM_REVOCATION_KEYS
 scripts/config --disable DEBUG_INFO

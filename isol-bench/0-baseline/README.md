@@ -4,16 +4,17 @@ We use eui64 to ensure we get the same NVMe for an experiment, even on reboot. R
 Note that uuid or puuid do not work here as we potentially want to reformat/overwrite the drive contents.
 
 When changing the drive to test on, run:
+
 ```bash
 # Make sure you are in the README.md's directory
 drive=/dev/nvmeXnY
 ../util/register_nvme.sh ${drive}
-../util/precondition.sh ${drive}
 ```
 
-# Execute benchmarks 
+# Execute benchmarks
 
 Make sure your SSD is filled and pre-conditioned. Then run:
+
 ```bash
 python3 run.py --help
 
@@ -23,6 +24,7 @@ done
 ```
 
 Debug settings during run:
+
 ```bash
 grep . /sys/fs/cgroup/example-workload-*/io.{prio.class,max,latency,weight,bfq.weight} \
        /sys/fs/cgroup/example-workload-*/*/io.{prio.class,max,latency,weight,bfq.weight} \
@@ -30,12 +32,13 @@ grep . /sys/fs/cgroup/example-workload-*/io.{prio.class,max,latency,weight,bfq.w
 ```
 
 Check output, there should be a ".json" and a ".log" for each knob:
+
 ```bash
 ls out/${testdrive}/*.{json, log}
 ```
-**NOTE**: 
-Note the workloads are read-only, so the drive only needs to be reformatted and preconditioned before the first run.
 
+**NOTE**:
+Note the workloads are read-only, so the drive only needs to be reformatted and preconditioned before the first run.
 
 # Plot benchmarks
 
